@@ -27,6 +27,9 @@ _version:
   five: &five
     language: ruby
     rvm: 2.5.3
+  six: &six
+    language: ruby
+    rvm: 2.6.0
 
 _browsers:
   firefox: &firefox-latest
@@ -39,45 +42,57 @@ _browsers:
 matrix:
   include:
       - env: RAKE_TASK=spec:remote_firefox
-        <<: *five
+        <<: *six
         <<: *firefox-latest
       - env: RAKE_TASK=spec:remote_chrome
-        <<: *five
+        <<: *six
         <<: *chrome
       - env: RAKE_TASK=spec:firefox RELAXED_LOCATE=false
-        <<: *five
+        <<: *six
         <<: *firefox-latest
       - env: RAKE_TASK=spec:firefox
-        <<: *five
+        <<: *six
+        <<: *firefox-latest
+      - env: RAKE_TASK=spec:firefox RUBYOPT="--jit"
+        <<: *six
         <<: *firefox-latest
       - env: RAKE_TASK=spec:firefox
         <<: *four
+        <<: *firefox-latest
+      - env: RAKE_TASK=spec:firefox
+        <<: *five
         <<: *firefox-latest
       - env: RAKE_TASK=spec:firefox
         <<: *three
         <<: *firefox-latest
       - env: RAKE_TASK=spec:chrome
-        <<: *five
+        <<: *six
+        <<: *chrome
+      - env: RAKE_TASK=spec:chrome RUBYOPT="--jit"
+        <<: *six
         <<: *chrome
       - env: RAKE_TASK=spec:chrome
         <<: *four
+        <<: *chrome
+      - env: RAKE_TASK=spec:chrome
+        <<: *five
         <<: *chrome
       - env: RAKE_TASK=spec:chrome
         <<: *three
         <<: *chrome
       - env: RAKE_TASK=spec:chrome RELAXED_LOCATE=false
-        <<: *five
+        <<: *six
         <<: *chrome
       - env: RAKE_TASK=spec:chrome HEADLESS=true
-        <<: *five
+        <<: *six
         <<: *chrome
       - env: RAKE_TASK=spec:unit
-        <<: *five
+        <<: *six
       - env: RAKE_TASK=spec:stats
-        <<: *five
+        <<: *six
         <<: *chrome
       - env: RAKE_TASK=yard:doctest
-        <<: *five
+        <<: *six
         <<: *chrome
       - env: RAKE_TASK=rubocop
         <<: *three

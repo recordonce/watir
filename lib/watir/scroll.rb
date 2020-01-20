@@ -15,7 +15,7 @@ module Watir
     # @param [Fixnum] top Vertical offset
     #
     def by(left, top)
-      @object.browser.execute_script('window.scrollBy(arguments[0], arguments[1]);', Integer(left), Integer(top))
+      @object.browser.execute_script('window.scrollBy({left: arguments[0], top: arguments[1], behaviour: "smooth"});', Integer(left), Integer(top))
       self
     end
 
@@ -36,17 +36,17 @@ module Watir
     def element_scroll(param)
       script = case param
                when :top, :start
-                 'arguments[0].scrollIntoView();'
+                 'arguments[0].scrollIntoView({behavior: "smooth"});'
                when :center
                  <<-JS
                    var bodyRect = document.body.getBoundingClientRect();
                    var elementRect = arguments[0].getBoundingClientRect();
                    var left = (elementRect.left - bodyRect.left) - (window.innerWidth / 2);
                    var top = (elementRect.top - bodyRect.top) - (window.innerHeight / 2);
-                   window.scrollTo(left, top);
+                   window.scrollTo({left: left, top: top, behaviour: "smooth"});
                  JS
                when :bottom, :end
-                 'arguments[0].scrollIntoView(false);'
+                 'arguments[0].scrollIntoView({block: "end", inline: "nearest", behavior: "smooth"});'
                else
                  return nil
                end
@@ -56,13 +56,13 @@ module Watir
     def browser_scroll(param)
       case param
       when :top, :start
-        'window.scrollTo(0, 0);'
+        'window.scrollTo({left: 0, top: 0, behaviour: "smooth"});'
       when :center
-        'window.scrollTo(window.outerWidth / 2, window.outerHeight / 2);'
+        'window.scrollTo({left: window.outerWidth / 2, top: window.outerHeight / 2, behaviour: "smooth"});'
       when :bottom, :end
-        'window.scrollTo(0, document.body.scrollHeight);'
+        'window.scrollTo({left: 0, top: document.body.scrollHeight, behavior: "smooth");'
       when Array
-        ['window.scrollTo(arguments[0], arguments[1]);', Integer(param[0]), Integer(param[1])]
+        ['window.scrollTo({left: arguments[0], top: arguments[1], behavior: "smooth");', Integer(param[0]), Integer(param[1])]
       end
     end
   end

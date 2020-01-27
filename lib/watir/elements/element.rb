@@ -664,7 +664,7 @@ module Watir
         wait_until(element_reset: true, &:exists?)
       rescue Wait::TimeoutError
         msg = "timed out after #{Watir.default_timeout} seconds, waiting for #{inspect} to be located"
-        raise unknown_exception, msg
+        raise unknown_exception.new(msg, @query_scope)
       end
     end
 

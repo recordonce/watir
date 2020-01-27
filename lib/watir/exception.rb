@@ -4,13 +4,17 @@ module Watir
 
     # TODO: rename Object -> Element?
     class UnknownObjectException < Error
-      def initialize(msg = nil, query_scope = nil)
-        @query_scope = query_scope
+      def initialize(msg = nil, obj)
+        @obj = obj
         super(msg)
       end
 
-      def scope
-        @query_scope
+      def obj
+        @obj
+      end
+
+      def xpath
+        @obj.build[:xpath]
       end
     end
     class ObjectDisabledException < Error; end

@@ -664,7 +664,7 @@ module Watir
         wait_until(element_reset: true, &:exists?)
       rescue Wait::TimeoutError
         msg = "timed out after #{Watir.default_timeout} seconds, waiting for #{inspect} to be located"
-        raise unknown_exception.new(msg, @query_scope)
+        raise unknown_exception.new(msg, self)
       end
     end
 
@@ -796,7 +796,7 @@ module Watir
         unless custom_attributes.empty?
           msg += "; Watir treated #{custom_attributes} as a non-HTML compliant attribute, ensure that was intended"
         end
-        raise unknown_exception, msg
+        raise unknown_exception.new(msg, self)
       rescue Selenium::WebDriver::Error::StaleElementReferenceError
         reset!
         retry

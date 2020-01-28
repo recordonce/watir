@@ -14,6 +14,7 @@ module Watir
       end
 
       def xpath
+        return unless @obj.respond_to?(:build)
         @obj.build[:xpath]
       end
     end

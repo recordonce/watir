@@ -2,6 +2,7 @@ module Watir
   class Font < HTMLElement
     #
     # size of font
+    # This is in the whatwg spec was not generated: https://html.spec.whatwg.org/#htmlfontelement
     #
     # @return [Integer]
     #
@@ -12,12 +13,12 @@ module Watir
   end # Font
 
   module Container
-    def font(*args)
-      Font.new(self, extract_selector(args).merge(tag_name: 'font'))
+    def font(opts = {})
+      Font.new(self, opts.merge(tag_name: 'font'))
     end
 
-    def fonts(*args)
-      FontCollection.new(self, extract_selector(args).merge(tag_name: 'font'))
+    def fonts(opts = {})
+      FontCollection.new(self, opts.merge(tag_name: 'font'))
     end
   end # Container
 end # Watir

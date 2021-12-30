@@ -4,7 +4,7 @@ module Watir
     include Exception
     include Enumerable
 
-    delegate %i[exists? present? visible? browser] => :source
+    delegate %i[exist? exists? present? visible? browser] => :source
 
     attr_reader :source, :frame
 
@@ -139,6 +139,7 @@ module Watir
       end
       raise UnknownObjectException, "Unable to locate radio matching #{str_or_rx.inspect}"
     end
+    alias set select
 
     #
     # Returns true if any of the radio button label matches the given value.
@@ -201,7 +202,7 @@ module Watir
     end
     alias eql? ==
 
-    # Ruby 2.4+ complains about using #delegate to do this
+    # Delegating to Private Methods
     %i[assert_exists element_call].each do |method|
       define_method(method) do |*args, &blk|
         source.send(method, *args, &blk)
@@ -218,8 +219,8 @@ module Watir
   end # RadioSet
 
   module Container
-    def radio_set(*args)
-      RadioSet.new(self, extract_selector(args).merge(tag_name: 'input', type: 'radio'))
+    def radio_set(opts = {})
+      RadioSet.new(self, opts.merge(tag_name: 'input', type: 'radio'))
     end
 
     Watir.tag_to_class[:radio_set] = RadioSet

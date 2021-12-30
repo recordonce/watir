@@ -47,7 +47,7 @@ describe 'Form' do
   describe '#submit' do
     it 'submits the form' do
       browser.form(id: 'delete_user').submit
-      Watir::Wait.until { !browser.url.include? 'forms_with_input_elements.html' }
+      browser.wait_while(url: /forms_with_input_elements\.html$/)
       expect(browser.text).to include('Semantic table')
     end
 
@@ -59,10 +59,8 @@ describe 'Form' do
       expect(messages[0]).to eq 'submit'
     end
 
-    compliant_on :relaxed_locate do
-      it 'times out when submitting an element that is not displayed' do
-        expect { browser.form(name: 'no').submit }.to raise_unknown_object_exception
-      end
+    it 'times out when submitting an element that is not displayed' do
+      expect { browser.form(name: 'no').submit }.to raise_unknown_object_exception
     end
   end
 end

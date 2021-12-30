@@ -7,18 +7,18 @@ describe Watir::Locators::TextField::SelectorBuilder do
   let(:uppercase) { 'ABCDEFGHIJKLMNOPQRSTUVWXYZÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞŸŽŠŒ' }
   let(:lowercase) { 'abcdefghijklmnopqrstuvwxyzàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿžšœ' }
   let(:negative_types) do
-    "translate(@type,'#{uppercase}','#{lowercase}')!='file' and "\
-"translate(@type,'#{uppercase}','#{lowercase}')!='radio' and " \
-"translate(@type,'#{uppercase}','#{lowercase}')!='checkbox' and " \
-"translate(@type,'#{uppercase}','#{lowercase}')!='submit' and " \
-"translate(@type,'#{uppercase}','#{lowercase}')!='reset' and " \
-"translate(@type,'#{uppercase}','#{lowercase}')!='image' and " \
-"translate(@type,'#{uppercase}','#{lowercase}')!='button' and " \
-"translate(@type,'#{uppercase}','#{lowercase}')!='hidden' and " \
-"translate(@type,'#{uppercase}','#{lowercase}')!='range' and " \
-"translate(@type,'#{uppercase}','#{lowercase}')!='color' and " \
-"translate(@type,'#{uppercase}','#{lowercase}')!='date' and " \
-"translate(@type,'#{uppercase}','#{lowercase}')!='datetime-local'"
+    "translate(@type,'#{uppercase}','#{lowercase}')!=translate('file','#{uppercase}','#{lowercase}') and "\
+    "translate(@type,'#{uppercase}','#{lowercase}')!=translate('radio','#{uppercase}','#{lowercase}') and " \
+    "translate(@type,'#{uppercase}','#{lowercase}')!=translate('checkbox','#{uppercase}','#{lowercase}') and " \
+    "translate(@type,'#{uppercase}','#{lowercase}')!=translate('submit','#{uppercase}','#{lowercase}') and " \
+    "translate(@type,'#{uppercase}','#{lowercase}')!=translate('reset','#{uppercase}','#{lowercase}') and " \
+    "translate(@type,'#{uppercase}','#{lowercase}')!=translate('image','#{uppercase}','#{lowercase}') and " \
+    "translate(@type,'#{uppercase}','#{lowercase}')!=translate('button','#{uppercase}','#{lowercase}') and " \
+    "translate(@type,'#{uppercase}','#{lowercase}')!=translate('hidden','#{uppercase}','#{lowercase}') and " \
+    "translate(@type,'#{uppercase}','#{lowercase}')!=translate('range','#{uppercase}','#{lowercase}') and " \
+    "translate(@type,'#{uppercase}','#{lowercase}')!=translate('color','#{uppercase}','#{lowercase}') and " \
+    "translate(@type,'#{uppercase}','#{lowercase}')!=translate('date','#{uppercase}','#{lowercase}') and " \
+    "translate(@type,'#{uppercase}','#{lowercase}')!=translate('datetime-local','#{uppercase}','#{lowercase}')"
   end
 
   describe '#build' do
@@ -33,7 +33,7 @@ describe Watir::Locators::TextField::SelectorBuilder do
       it 'specified text field type that is text' do
         selector = {type: 'text'}
         built = {xpath: ".//*[local-name()='input']" \
-"[translate(@type,'#{uppercase}','#{lowercase}')='text']"}
+"[translate(@type,'#{uppercase}','#{lowercase}')=translate('text','#{uppercase}','#{lowercase}')]"}
 
         expect(selector_builder.build(selector)).to eq built
       end
@@ -41,7 +41,7 @@ describe Watir::Locators::TextField::SelectorBuilder do
       it 'specified text field type that is not text' do
         selector = {type: 'number'}
         built = {xpath: ".//*[local-name()='input']" \
-"[translate(@type,'#{uppercase}','#{lowercase}')='number']"}
+"[translate(@type,'#{uppercase}','#{lowercase}')=translate('number','#{uppercase}','#{lowercase}')]"}
 
         expect(selector_builder.build(selector)).to eq built
       end
@@ -156,21 +156,20 @@ describe Watir::Locators::TextField::SelectorBuilder do
         expect(selector_builder.build(selector)).to eq built
       end
 
-      # TODO: Can use contains once remove :text_regexp deprecation
-      xit 'using simple Regexp' do
+      it 'using simple Regexp' do
         selector = {label: /First/}
         built = {xpath: ".//*[local-name()='input'][not(@type) or (#{negative_types})]" \
-"[@id=//label[contains(text(), 'First')]/@for or parent::label[contains(text(), 'First')]]"}
+"[@id=//label[contains(normalize-space(), 'First')]/@for or parent::label[contains(normalize-space(), 'First')]]"}
 
         expect(selector_builder.build(selector)).to eq built
       end
 
-      # TODO: Can use contains once remove :text_regexp deprecation
-      xit 'using complex Regexp' do
+      it 'using complex Regexp' do
         selector = {label: /([qa])st? name/}
         built = {xpath: ".//*[local-name()='input'][not(@type) or (#{negative_types})]" \
-"[@id=//label[contains(text(), 's') and contains(text(), ' name')]/@for or " \
-"parent::label[contains(text(), 's') and contains(text(), ' name')]]", label_element: /([qa])st? name/}
+"[@id=//label[contains(normalize-space(), 's') and contains(normalize-space(), ' name')]/@for or " \
+"parent::label[contains(normalize-space(), 's') and contains(normalize-space(), ' name')]]",
+                 label_element: /([qa])st? name/}
 
         expect(selector_builder.build(selector)).to eq built
       end

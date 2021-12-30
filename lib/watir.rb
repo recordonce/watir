@@ -2,10 +2,10 @@ require 'selenium-webdriver'
 require 'time'
 
 require 'watir/scroll'
-require 'watir/legacy_wait'
 require 'watir/wait'
 require 'watir/exception'
 require 'watir/window'
+require 'watir/window_collection'
 require 'watir/has_window'
 require 'watir/adjacent'
 require 'watir/js_execution'
@@ -13,59 +13,18 @@ require 'watir/alert'
 require 'watir/js_snippets'
 require 'watir/container'
 require 'watir/cookies'
+require 'watir/http_client'
 require 'watir/capabilities'
 require 'watir/navigation'
 require 'watir/browser'
 require 'watir/screenshot'
 require 'watir/after_hooks'
 require 'watir/logger'
+require 'watir/version'
 
 module Watir
-  @relaxed_locate = true
-
   class << self
-    attr_writer :relaxed_locate, :always_locate, :default_timeout, :prefer_css
-
-    #
-    # Whether or not Watir should wait for an element to be found or present
-    # before taking an action.
-    # Defaults to true.
-    #
-
-    def relaxed_locate?
-      @relaxed_locate
-    end
-
-    #
-    # Whether or not Watir should re-locate a stale Element on use.
-    #
-
-    def always_locate?
-      always_locate_message
-      true
-    end
-
-    def always_locate_message
-      msg = 'Watir#always_locate'
-      repl_msg = 'Element#stale? or Element#wait_until(&:stale?) if needed for flow control'
-      Watir.logger.deprecate msg, repl_msg, ids: [:always_locate]
-    end
-
-    #
-    # Whether or not Watir should prefer CSS when translating the Watir selector to Selenium.
-    #
-
-    def prefer_css?
-      prefer_css_message
-      false
-    end
-
-    def prefer_css_message
-      msg = 'Watir#prefer_css'
-      repl_msg = 'watir_css gem - https://github.com/watir/watir_css'
-
-      Watir.logger.deprecate msg, repl_msg, ids: [:prefer_css]
-    end
+    attr_writer :default_timeout
 
     #
     # Default wait time for wait methods.
@@ -114,7 +73,6 @@ require 'watir/elements/element'
 require 'watir/elements/html_elements'
 require 'watir/elements/svg_elements'
 
-require 'watir/elements/area'
 require 'watir/elements/button'
 require 'watir/elements/cell'
 require 'watir/elements/checkbox'

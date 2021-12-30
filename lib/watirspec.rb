@@ -31,7 +31,7 @@ module WatirSpec
 
     def load_support
       root = File.expand_path('../spec/watirspec', __dir__)
-      Dir.glob("#{root}/support/**/*.rb").each do |file|
+      Dir.glob("#{root}/support/**/*.rb").sort.each do |file|
         require file
       end
     end
@@ -53,7 +53,9 @@ module WatirSpec
       @implementation = imp
     end
 
-    def new_browser
+    def new_browser(pause = 1)
+      sleep pause
+
       klass = WatirSpec.implementation.browser_class
       args = Array(WatirSpec.implementation.browser_args).map { |e| e.is_a?(Hash) ? e.dup : e }
 
@@ -77,9 +79,10 @@ module WatirSpec
 
       info << caps.browser_name.to_s
       info << caps.version.to_s
+      info << @implementation.driver_info
 
       Watir.logger.warn "running watirspec against #{info.join ' '} using:\n#{WatirSpec.implementation.inspect_args}",
-                        ids: [:browser_info]
+                        id: [:browser_info]
     rescue StandardError
       # ignored
     end

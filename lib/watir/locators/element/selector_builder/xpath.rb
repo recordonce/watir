@@ -12,6 +12,7 @@ module Watir
 
           def build(selector)
             @selector = selector
+            @valid_attributes = build_valid_attributes
 
             @built = (@selector.keys & CAN_NOT_BUILD).each_with_object({}) do |key, hash|
               hash[key] = @selector.delete(key)
@@ -45,9 +46,10 @@ module Watir
           end
 
           def predicate_expression(key, val)
-            if val.eql? true
+            case val
+            when true
               attribute_presence(key)
-            elsif val.eql? false
+            when false
               attribute_absence(key)
             else
               equal_pair(key, val)
@@ -55,11 +57,9 @@ module Watir
           end
 
           def predicate_conversion(key, regexp)
-            # type attributes can be upper case - downcase them
-            # https://github.com/watir/watir/issues/72
-            downcase = key == :type || regexp.casefold?
+            downcase = case_insensitive_attribute?(key) || regexp.casefold?
 
-            lhs = lhs_for(key, downcase)
+            lhs = lhs_for(key, downcase: downcase)
 
             results = RegexpDisassembler.new(regexp).substrings
 
@@ -72,8 +72,10 @@ module Watir
 
             add_to_matching(key, regexp, results)
 
-            results.map { |substring|
-              "contains(#{lhs}, '#{substring}')"
+            results.map { |rhs|
+              rhs = "'#{rhs}'"
+              rhs = XpathSupport.downcase(rhs) if downcase
+              "contains(#{lhs}, #{rhs})"
             }.flatten.compact.join(' and ')
           end
 
@@ -118,37 +120,24 @@ module Watir
           end
 
           def text_string
-            text = @selector.delete :text
-
-            case text
-            when nil
-              ''
-            when Regexp
-              @built[:text] = text
-              ''
-            else
-              "[#{predicate_expression(:text, text)}]"
-            end
+            result = equal_or_contains(@selector.delete(:text))
+            result.nil? ? '' : "[#{result}]"
           end
 
           def label_element_string
-            label = @selector.delete :label_element
+            text = @selector.delete(:label_element)
+            return '' if text.nil?
 
-            return '' if label.nil?
+            result = equal_or_contains(text)
+            @built[:label_element] = @built.delete(:text) if @built.key?(:text)
 
-            key = label.is_a?(Regexp) ? :contains_text : :text
+            result.nil? ? '' : "[@id=//label[#{result}]/@for or parent::label[#{result}]]"
+          end
 
-            value = process_attribute(key, label)
+          def equal_or_contains(value)
+            return nil if value.nil? || value.is_a?(String) && value.empty? || value.inspect == '//'
 
-            @built[:label_element] = @built.delete :contains_text if @built.key?(:contains_text)
-
-            # TODO: This conditional can be removed when we remove this deprecation
-            if label.is_a?(Regexp)
-              @built[:label_element] = label
-              ''
-            else
-              "[@id=//label[#{value}]/@for or parent::label[#{value}]]"
-            end
+            process_attribute(:text, value)
           end
 
           def attribute_string
@@ -183,7 +172,7 @@ module Watir
           end
 
           def starts_with?(results, regexp)
-            regexp.source[0] == '^' && results.first == regexp.source[1..-1]
+            regexp.source[0] == '^' && results.first == regexp.source[1..]
           end
 
           def add_to_matching(key, regexp, results = nil)
@@ -200,43 +189,75 @@ module Watir
             regexp.casefold? ? !results.first.casecmp(regexp.source).zero? : results.first != regexp.source
           end
 
-          def lhs_for(key, downcase = false)
-            case key
-            when String
-              "@#{key}"
-            when :tag_name
-              'local-name()'
-            when :href
-              'normalize-space(@href)'
-            when :text
-              'normalize-space()'
-            when :contains_text
-              'text()'
-            when ::Symbol
-              lhs = "@#{key.to_s.tr('_', '-')}"
-              downcase ? XpathSupport.downcase(lhs) : lhs
-            else
-              raise LocatorException, "Unable to build XPath using #{key}:#{key.class}"
-            end
+          def lhs_for(key, downcase: false)
+            lhs = case key
+                  when String
+                    process_string key
+                  when :tag_name
+                    'local-name()'
+                  when :href
+                    'normalize-space(@href)'
+                  when :text
+                    'normalize-space()'
+                  when ::Symbol
+                    process_string key.to_s.tr('_', '-')
+                  else
+                    raise LocatorException, "Unable to build XPath using #{key}:#{key.class}"
+                  end
+            downcase ? XpathSupport.downcase(lhs) : lhs
           end
 
           def attribute_presence(attribute)
-            lhs_for(attribute, false)
+            lhs_for(attribute)
           end
 
           def attribute_absence(attribute)
-            lhs = lhs_for(attribute, false)
+            lhs = lhs_for(attribute)
             "not(#{lhs})"
           end
 
           def equal_pair(key, value)
             if key == :class
-              negate_xpath = value =~ /^!/ && value.slice!(0)
+              negate_xpath = value =~ /^!/
+              value = value[1..] if negate_xpath
               expression = "contains(concat(' ', @class, ' '), #{XpathSupport.escape " #{value} "})"
 
               negate_xpath ? "not(#{expression})" : expression
             else
-              "#{lhs_for(key, key == :type)}=#{XpathSupport.escape value}"
+              downcase = case_insensitive_attribute?(key)
+
+              lhs = lhs_for(key, downcase: downcase)
+              rhs = XpathSupport.escape(value)
+              rhs = XpathSupport.downcase(rhs) if downcase
+
+              "#{lhs}=#{rhs}"
+            end
+          end
+
+          def build_valid_attributes
+            tag_name = @selector[:tag_name]
+            if tag_name.is_a?(String) && Watir.tag_to_class[tag_name.to_sym]
+              Watir.tag_to_class[tag_name.to_sym].attribute_list
+            else
+              Watir::HTMLElement.attribute_list
+            end
+          end
+
+          def case_insensitive_attribute?(attribute)
+            # type attributes can be upper case - downcase them
+            # https://github.com/watir/watir/issues/72
+            return true if attribute == :type
+            return true if Watir::Element::CASE_INSENSITIVE_ATTRIBUTES.include?(attribute) &&
+                           @valid_attributes.include?(attribute)
+
+            false
+          end
+
+          def process_string(name)
+            if name =~ /^[a-zA-Z_:][a-zA-Z0-9_:.\-]*$/
+              "@#{name}"
+            else
+              "(attribute::*[local-name(.) = '#{name}'])"
             end
           end
         end

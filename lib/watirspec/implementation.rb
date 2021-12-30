@@ -1,16 +1,14 @@
 module WatirSpec
   class Implementation
     attr_writer :name, :guard_proc, :browser_class
-    attr_accessor :browser_args
+    attr_accessor :browser_args, :driver_info
 
     def initialize
       @guard_proc = nil
     end
 
-    def initialize_copy(orig)
-      super
-      # Backward compatibility < Ruby 2.4
-      @browser_args = browser_args.map { |arg| arg.is_a?(Symbol) ? arg : arg.dup }
+    def initialize_copy(_orig)
+      @browser_args = browser_args.map(&:dup)
     end
 
     def browser_class
@@ -19,6 +17,10 @@ module WatirSpec
 
     def name
       @name || raise('implementation name not set')
+    end
+
+    def browser_name
+      browser_args.first == :ie ? :internet_explorer : browser_args.first
     end
 
     def matches_guard?(args)

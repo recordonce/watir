@@ -5,7 +5,7 @@ Bundler::GemHelper.install_tasks
 
 require 'rspec/core/rake_task'
 RSpec::Core::RakeTask.new(:spec) do |spec|
-  spec.rspec_opts = %w[--color --require fuubar --format Fuubar]
+  spec.rspec_opts = %w[--color --format doc]
   spec.pattern = 'spec/**/*_spec.rb'
   spec.exclude_pattern = 'spec/unit/**/*_spec.rb'
 end
@@ -25,7 +25,7 @@ end
 
 {
   html: 'https://www.w3.org/TR/html52/single-page.html',
-  svg: 'http://www.w3.org/TR/SVG2/single-page.html'
+  svg: 'https://www.w3.org/TR/2018/CR-SVG2-20180807/single-page.html'
 }.each do |type, spec_uri|
   namespace type do
     spec_path = "support/#{type}.html"
@@ -61,7 +61,7 @@ end
 
       if extractor.errors.any?
         puts "\n\n<======================= ERRORS =======================>\n\n"
-        puts extractor.errors.join("\n" + '=' * 80 + "\n")
+        puts extractor.errors.join("\n#{'=' * 80}\n")
       end
     end
 
@@ -115,7 +115,7 @@ namespace :changes do
 
   desc 'Print latest diff'
   task print: :differ do
-    VersionDiffer.new.print_latest(STDOUT)
+    VersionDiffer.new.print_latest($stdout)
   end
 end
 

@@ -1,5 +1,7 @@
 module Watir
   module HasWindow
+    attr_writer :original_window
+
     #
     # Returns browser windows array.
     #
@@ -9,14 +11,8 @@ module Watir
     # @return [Array<Window>]
     #
 
-    def windows(*args)
-      all = @driver.window_handles.map { |handle| Window.new(self, handle: handle) }
-
-      if args.empty?
-        all
-      else
-        filter_windows extract_selector(args), all
-      end
+    def windows(opts = {})
+      WindowCollection.new self, opts
     end
 
     #
@@ -28,8 +24,8 @@ module Watir
     # @return [Window]
     #
 
-    def window(*args, &blk)
-      win = Window.new self, extract_selector(args)
+    def window(opts = {}, &blk)
+      win = Window.new self, opts
 
       win.use(&blk) if block_given?
 
@@ -51,16 +47,24 @@ module Watir
       @original_window ||= window
     end
 
-    private
+    #
+    # Waits for and returns second window if present
+    # See Window#use
+    #
+    # @example
+    #   browser.switch_window
+    #
+    # @return [Window]
+    #
 
-    def filter_windows(selector, windows)
-      unless selector.keys.all? { |k| %i[title url].include? k }
-        raise ArgumentError, "invalid window selector: #{selector.inspect}"
-      end
+    def switch_window
+      current_window = window
+      wins = windows
+      wait_until { (wins = windows) && wins.size > 1 } if wins.size == 1
+      raise StandardError, 'Unable to determine which window to switch to' if wins.size > 2
 
-      windows.select do |win|
-        selector.all? { |key, value| win.send(key) =~ /#{value}/ }
-      end
+      wins.find { |w| w != current_window }.use
+      window
     end
   end # HasWindow
 end # Watir

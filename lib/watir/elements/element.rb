@@ -8,7 +8,6 @@ module Watir
 
     include Exception
     include Container
-    include EventuallyPresent
     include Waitable
     include Adjacent
     include JSExecution
@@ -17,6 +16,17 @@ module Watir
 
     attr_accessor :keyword
     attr_reader :selector
+
+    # https://www.w3.org/TR/html52/single-page.html#casesensitivity
+    CASE_INSENSITIVE_ATTRIBUTES = %i[accept accept_charset align alink axis
+                                     bgcolor charset checked clear codetype
+                                     color compact declare defer dir direction
+                                     disabled enctype face frame hreflang
+                                     http_equiv lang language link media
+                                     method multiple nohref noresize noshade
+                                     nowrap readonly rel rev rules scope
+                                     scrolling selected shape target text
+                                     type valign valuetype vlink].freeze
 
     #
     # temporarily add :id and :class_name manually since they're no longer specified in the HTML spec.
@@ -34,11 +44,10 @@ module Watir
 
       raise ArgumentError, "invalid argument: #{selector.inspect}" unless selector.is_a? Hash
 
+      selector[:index] = 0 if selector.empty?
       @element = selector.delete(:element)
 
-      if @element && !(selector.keys - %i[tag_name]).empty?
-        Watir.logger.deprecate(':element locator to initialize a relocatable Element', '#cache=', ids: [:element_cache])
-      end
+      selector = {} if @element && !(selector.keys - [:tag_name]).empty?
 
       @selector = selector
 
@@ -137,10 +146,10 @@ module Watir
     # @param [:shift, :alt, :control, :command, :meta] modifiers to press while clicking.
     #
 
-    def click(*modifiers)
-      # TODO: Should wait_for_enabled be default, or `Button` specific behavior?
+    def click(*modifiers, scroll_to: :center)
       element_call(:wait_for_enabled) do
         if modifiers.any?
+          scroll.to(scroll_to) if scroll_to
           action = driver.action
           modifiers.each { |mod| action.key_down mod }
           action.click @element
@@ -153,6 +162,26 @@ module Watir
       end
 
       browser.after_hooks.run
+    end
+
+    #
+    # Determines the correct action based on subtype and takes it.
+    # Default is to click element
+    #
+
+    def set(*args)
+      subtype = to_subtype
+      if subtype.is_a?(Radio) && [String, Regexp].include?(args.first.class)
+        RadioSet.new(@query_scope, selector).set(*args)
+      elsif subtype.class.included_modules.include?(UserEditable) || subtype.public_methods(false).include?(:set)
+        subtype.set(*args)
+      elsif @content_editable || content_editable?
+        @content_editable = true
+        extend UserEditable
+        set(*args)
+      elsif args.empty? || args.first
+        click(*args)
+      end
     end
 
     #
@@ -174,9 +203,15 @@ module Watir
     # @example
     #   browser.element(name: "new_user_button").double_click
     #
+    # @example
+    #   browser.element(name: "new_user_button").double_click(scroll_to: :center)
+    #
 
-    def double_click
-      element_call(:wait_for_present) { driver.action.double_click(@element).perform }
+    def double_click(scroll_to: :center)
+      element_call(:wait_for_present) do
+        scroll.to(scroll_to) if scroll_to
+        driver.action.double_click(@element).perform
+      end
       browser.after_hooks.run
     end
 
@@ -206,16 +241,22 @@ module Watir
     # @example Click an element with several modifier keys pressed
     #   browser.element(name: "new_user_button").right_click(:shift, :alt)
     #
-    # @param [:shift, :alt, :control, :command, :meta] modifiers to press while right clicking.
+    # @example Click an element with several modifier keys pressed and scroll position
+    #   browser.element(name: "new_user_button").right_click(:shift, :alt, scroll_to: :center)
+    #
+    # @param [:shift, :alt, :control, :command, :meta, scroll_to: :center]
+    # modifiers to press while right clicking and scroll position.
     #
 
-    def right_click(*modifiers)
+    def right_click(*modifiers, scroll_to: :center)
       element_call(:wait_for_present) do
+        scroll.to(scroll_to) if scroll_to
         action = driver.action
         if modifiers.any?
           modifiers.each { |mod| action.key_down mod }
-          action.context_click(@element).perform
+          action.context_click(@element)
           modifiers.each { |mod| action.key_up mod }
+          action.perform
         else
           action.context_click(@element).perform
         end
@@ -231,9 +272,15 @@ module Watir
     # @example
     #   browser.element(name: "new_user_button").hover
     #
+    # @example
+    #   browser.element(name: "new_user_button").hover(scroll_to: :center)
+    #
 
-    def hover
-      element_call(:wait_for_present) { driver.action.move_to(@element).perform }
+    def hover(scroll_to: :center)
+      element_call(:wait_for_present) do
+        scroll.to(scroll_to) if scroll_to
+        driver.action.move_to(@element).perform
+      end
     end
 
     #
@@ -244,12 +291,14 @@ module Watir
     #   a = browser.div(id: "draggable")
     #   b = browser.div(id: "droppable")
     #   a.drag_and_drop_on b
+    #   a.drag_and_drop_on b, scroll_to: :center
     #
 
-    def drag_and_drop_on(other)
+    def drag_and_drop_on(other, scroll_to: :center)
       assert_is_element other
 
       value = element_call(:wait_for_present) do
+        scroll.to(scroll_to) if scroll_to
         driver.action
               .drag_and_drop(@element, other.wd)
               .perform
@@ -265,12 +314,17 @@ module Watir
     # @example
     #   browser.div(id: "draggable").drag_and_drop_by 100, 25
     #
+    # @example
+    #   browser.div(id: "draggable").drag_and_drop_by 100, 25, scroll_to: :center
+    #
     # @param [Integer] right_by
     # @param [Integer] down_by
+    # @param [Symbol] scroll_to
     #
 
-    def drag_and_drop_by(right_by, down_by)
+    def drag_and_drop_by(right_by, down_by, scroll_to: :center)
       element_call(:wait_for_present) do
+        scroll.to(scroll_to) if scroll_to
         driver.action
               .drag_and_drop_by(@element, right_by, down_by)
               .perform
@@ -365,19 +419,6 @@ module Watir
     end
 
     #
-    # Scroll until the element is in the view screen
-    #
-    # @example
-    #   browser.button(name: "new_user_button").scroll_into_view
-    #
-    # @return [Selenium::WebDriver::Point]
-    #
-
-    def scroll_into_view
-      element_call { @element.location_once_scrolled_into_view }
-    end
-
-    #
     # location of element (x, y)
     #
     # @example
@@ -466,20 +507,6 @@ module Watir
     end
 
     #
-    # Returns true if this element is visible on the page.
-    # Raises exception if element does not exist
-    #
-    # @return [Boolean]
-    #
-
-    def visible?
-      msg = '#visible? behavior will be changing slightly, consider switching to #present? ' \
-            '(more details: http://watir.com/element-existentialism/)'
-      Watir.logger.warn msg, ids: [:visible_element]
-      display_check
-    end
-
-    #
     # Returns true if this element is present and enabled on the page.
     #
     # @return [Boolean]
@@ -499,10 +526,15 @@ module Watir
     #
 
     def present?
-      display_check
+      assert_exists
+      @element.displayed?
     rescue UnknownObjectException, UnknownFrameException
       false
+    rescue Selenium::WebDriver::Error::StaleElementReferenceError
+      reset!
+      retry
     end
+    alias visible? present?
 
     #
     # Returns true if the element's center point is covered by a non-descendant element.
@@ -514,9 +546,19 @@ module Watir
       element_call do
         return true unless present?
 
-        scroll.to
+        scroll.to :bottom unless in_viewport?
         execute_js(:elementObscured, self)
       end
+    end
+
+    #
+    # Returns true if the top of the element is visible in the viewport.
+    #
+    # @return [Boolean]
+    #
+
+    def in_viewport?
+      element_call { execute_js(:isElementInViewport, @element) }
     end
 
     #
@@ -547,7 +589,7 @@ module Watir
     #
 
     def to_subtype
-      tag = tag_name()
+      tag = tag_name
       klass = if tag == 'input'
                 case attribute_value(:type)
                 when 'checkbox'
@@ -608,6 +650,9 @@ module Watir
     #
 
     def locate
+      msg = 'Can not relocate a Watir element initialized by a Selenium element'
+      raise LocatorException, msg if @selector.empty?
+
       ensure_context
       locate_in_context
       self
@@ -656,7 +701,6 @@ module Watir
     protected
 
     def wait_for_exists
-      return assert_exists unless Watir.relaxed_locate?
       return if located? # Performance shortcut
 
       begin
@@ -669,8 +713,7 @@ module Watir
     end
 
     def wait_for_present
-      p = present?
-      return p if !Watir.relaxed_locate? || p
+      return true if present?
 
       begin
         @query_scope.wait_for_present unless @query_scope.is_a? Browser
@@ -683,8 +726,6 @@ module Watir
     end
 
     def wait_for_enabled
-      return assert_enabled unless Watir.relaxed_locate?
-
       wait_for_exists
       return unless [Input, Button, Select, Option].any? { |c| is_a? c } || @content_editable
       return if enabled?
@@ -698,9 +739,6 @@ module Watir
 
     def wait_for_writable
       wait_for_enabled
-      unless Watir.relaxed_locate?
-        raise_writable unless !respond_to?(:readonly?) || !readonly?
-      end
 
       return if !respond_to?(:readonly?) || !readonly?
 
@@ -720,7 +758,11 @@ module Watir
     end
 
     def ensure_context
-      @query_scope.locate if @query_scope.is_a?(Browser) || @query_scope.located? && @query_scope.stale?
+      if @query_scope.is_a?(Browser) || !@query_scope.located? && @query_scope.is_a?(IFrame)
+        @query_scope.browser.locate
+      elsif @query_scope.located? && @query_scope.stale?
+        @query_scope.locate
+      end
       @query_scope.switch_to! if @query_scope.is_a?(IFrame)
     end
 
@@ -764,25 +806,15 @@ module Watir
       raise TypeError, "expected Watir::Element, got #{obj.inspect}:#{obj.class}" unless obj.is_a? Element
     end
 
-    # Removes duplication in #present? & #visible? and makes setting deprecation notice easier
-    def display_check
-      assert_exists
-      @element.displayed?
-    rescue Selenium::WebDriver::Error::StaleElementReferenceError
-      reset!
-      retry
-    end
-
     # TODO: - this will get addressed with Watir::Executor implementation
     # rubocop:disable Metrics/AbcSize
     # rubocop:disable Metrics/MethodLength
-    # rubocop:disable Metrics/PerceivedComplexity
     # rubocop:disable Metrics/CyclomaticComplexity:
-    # rubocop:disable Lint/ShadowedException
+    # rubocop:disable Metrics/PerceivedComplexity::
     def element_call(precondition = nil, &block)
       caller = caller_locations(1, 1)[0].label
-      already_locked = Wait.timer.locked?
-      Wait.timer = Wait::Timer.new(timeout: Watir.default_timeout) unless already_locked
+      already_locked = browser.timer.locked?
+      browser.timer = Wait::Timer.new(timeout: Watir.default_timeout) unless already_locked
 
       begin
         check_condition(precondition, caller)
@@ -792,34 +824,31 @@ module Watir
         element_call(:wait_for_exists, &block) if precondition.nil?
         msg = e.message
         msg += '; Maybe look in an iframe?' if @query_scope.iframe.exists?
-        custom_attributes = @locator.nil? ? [] : selector_builder.custom_attributes
+        custom_attributes = !defined?(@locator) || @locator.nil? ? [] : selector_builder.custom_attributes
         unless custom_attributes.empty?
           msg += "; Watir treated #{custom_attributes} as a non-HTML compliant attribute, ensure that was intended"
         end
         raise unknown_exception.new(msg, self)
-      rescue Selenium::WebDriver::Error::StaleElementReferenceError
+      rescue Selenium::WebDriver::Error::StaleElementReferenceError, Selenium::WebDriver::Error::NoSuchElementError
         reset!
         retry
+        # TODO: - InvalidElementStateError is deprecated, so no longer calling `raise_disabled`
+        # need a better way to handle this
       rescue Selenium::WebDriver::Error::ElementNotInteractableError
-        raise_present unless Wait.timer.remaining_time.positive?
+        raise_present unless browser.timer.remaining_time.positive?
         raise_present unless %i[wait_for_present wait_for_enabled wait_for_writable].include?(precondition)
-        retry
-      rescue Selenium::WebDriver::Error::InvalidElementStateError
-        raise_disabled unless Wait.timer.remaining_time.positive?
-        raise_disabled unless %i[wait_for_present wait_for_enabled wait_for_writable].include?(precondition)
         retry
       rescue Selenium::WebDriver::Error::NoSuchWindowError
         raise NoMatchingWindowFoundException, 'browser window was closed'
       ensure
         Watir.logger.debug "<- `Completed #{inspect}##{caller}`"
-        Wait.timer.reset! unless already_locked
+        browser.timer.reset! unless already_locked
       end
     end
     # rubocop:enable Metrics/AbcSize
     # rubocop:enable Metrics/MethodLength
+    # rubocop:enable Metrics/CyclomaticComplexity
     # rubocop:enable Metrics/PerceivedComplexity
-    # rubocop:enable Metrics/CyclomaticComplexity:
-    # rubocop:enable Lint/ShadowedException
 
     def check_condition(condition, caller)
       Watir.logger.debug "<- `Verifying precondition #{inspect}##{condition} for #{caller}`"

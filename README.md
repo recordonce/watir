@@ -3,10 +3,9 @@
 Watir Powered By Selenium!
 
 [![Gem Version](https://badge.fury.io/rb/watir.svg)](http://badge.fury.io/rb/watir)
-[![Travis Status](https://travis-ci.org/watir/watir.svg?branch=master)](https://travis-ci.org/watir/watir)
-[![AppVeyor status](https://ci.appveyor.com/api/projects/status/9vbb7pp5p4uyoott/branch/master?svg=true)](https://ci.appveyor.com/project/p0deje/watir)
+[![All Tests](https://github.com/watir/watir/actions/workflows/tests.yml/badge.svg)](https://github.com/watir/watir/actions/workflows/tests.yml)
 [![Code Climate](https://codeclimate.com/github/watir/watir.svg)](https://codeclimate.com/github/watir/watir)
-[![Coverage Status](https://coveralls.io/repos/github/watir/watir/badge.svg?branch=master)](https://coveralls.io/github/watir/watir?branch=master)
+[![Coverage Status](https://coveralls.io/repos/github/watir/watir/badge.svg?branch=main)](https://coveralls.io/github/watir/watir?branch=main)
 
 ## Using Watir
 
@@ -69,11 +68,11 @@ $ bundle exec rake svg:update
 
 ## Specs
 
-#### Travis CI
+#### Github Actions
 
-Watir specs are run on [Travis CI](https://travis-ci.org/watir/watir).
+Watir specs are run with [Github Actions](https://github.com/watir/watir/workflows).
 
-Watir code is tested with 2.3, 2.4 and 2.5 versions in multiple browsers and with multiple configurations.
+Watir code is tested on Linux with latest versions of supported browsers and all active Ruby versions.
 
 #### Doctests
 
@@ -95,7 +94,7 @@ to ensure all paths in their code have tests associated with them.
 
 Watir is using [Rubocop](https://github.com/rubocop-hq/rubocop) to ensure a consistent style across the
 code base. It is run with our minimum supported Ruby version (2.3) 
-We have some [established exceptions](https://github.com/watir/watir/blob/master/.rubocop.yml) 
+We have some [established exceptions](https://github.com/watir/watir/blob/main/.rubocop.yml) 
 that might need to be tweaked for new code submissions. This can be addressed in the PR as necessary.
 
 #### Statistics
@@ -107,7 +106,4 @@ on wire calls.
 
 ## Copyright
 
-Copyright (c) 2009-2015 Jari Bakken
-Copyright (c) 2015-2018 Alex Rodionov, Titus Fortner
-Copyright (c) 2018 Justin Ko
 See LICENSE for details

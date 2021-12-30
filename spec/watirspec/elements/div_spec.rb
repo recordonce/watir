@@ -19,6 +19,9 @@ describe 'Div' do
       expect(browser.div(xpath: "//div[@id='header']")).to exist
       expect(browser.div(custom_attribute: 'custom')).to exist
       expect(browser.div(custom_attribute: /custom/)).to exist
+      expect(browser.div(text: /some visible/)).to exist
+      expect(browser.div(text: /some (visible|Jeff)/)).to exist
+      expect(browser.div(text: /none visible/)).to exist
     end
 
     it 'returns the first div if given no args' do
@@ -34,6 +37,7 @@ describe 'Div' do
       expect(browser.div(text: /no_such_text/)).to_not exist
       expect(browser.div(class: 'no_such_class')).to_not exist
       expect(browser.div(class: /no_such_class/)).to_not exist
+      expect(browser.div(text: /some visible some hidden/)).to exist
       expect(browser.div(index: 1337)).to_not exist
       expect(browser.div(xpath: "//div[@id='no_such_id']")).to_not exist
     end
@@ -71,10 +75,8 @@ describe 'Div' do
   end
 
   describe '#style' do
-    not_compliant_on :internet_explorer do
-      it 'returns the style attribute if the element exists' do
-        expect(browser.div(id: 'best_language').style).to eq 'color: red; text-decoration: underline; cursor: pointer;'
-      end
+    it 'returns the style attribute if the element exists' do
+      expect(browser.div(id: 'best_language').style).to eq 'color: red; text-decoration: underline; cursor: pointer;'
     end
 
     it "returns an empty string if the element exists but the attribute doesn't" do
@@ -97,10 +99,9 @@ describe 'Div' do
       expect(browser.div(index: 0).text.strip).to eq ''
     end
 
-    bug 'Safari is not filtering out hidden text', :safari do
-      it 'returns an empty string if the div is hidden' do
-        expect(browser.div(id: 'hidden').text).to eq ''
-      end
+    it 'returns an empty string if the div is hidden',
+       except: {browser: :safari, reason: 'Safari is not filtering out hidden text'} do
+      expect(browser.div(id: 'hidden').text).to eq ''
     end
 
     it 'raises UnknownObjectException if the element does not exist' do
@@ -126,40 +127,6 @@ describe 'Div' do
     end
   end
 
-  describe 'Deprecation Warnings' do
-    describe 'text locator with RegExp values' do
-      it 'does not throw deprecation when still matched by text content' do
-        expect { browser.div(text: /some visible/).locate }.not_to have_deprecated_text_regexp
-      end
-
-      it 'does not throw deprecation with complex regexp matched by text content' do
-        expect { browser.div(text: /some (in|)visible/).locate }.not_to have_deprecated_text_regexp
-      end
-
-      not_compliant_on :watigiri do
-        bug 'Safari is not filtering out hidden text', :safari do
-          it 'throws deprecation when no longer matched by text content' do
-            expect { browser.div(text: /some visible$/).locate }.to have_deprecated_text_regexp
-          end
-        end
-      end
-
-      not_compliant_on :watigiri do
-        it 'does not throw deprecation when element does not exist' do
-          expect { browser.div(text: /definitely not there/).locate }.not_to have_deprecated_text_regexp
-        end
-      end
-
-      not_compliant_on :watigiri do
-        bug 'Safari is not filtering out hidden text', :safari do
-          it 'does not locate entire content with regular expressions' do
-            expect(browser.div(text: /some visible some hidden/)).to_not exist
-          end
-        end
-      end
-    end
-  end
-
   # Manipulation methods
   describe '#click' do
     it 'fires events when clicked' do
@@ -179,7 +146,7 @@ describe 'Div' do
     end
 
     it 'includes custom message if element with a custom attribute does not exist' do
-      message = /Watir treated \[\"custom_attribute\"\] as a non-HTML compliant attribute, ensure that was intended/
+      message = /Watir treated \["custom_attribute"\] as a non-HTML compliant attribute, ensure that was intended/
       expect { browser.div(custom_attribute: 'not_there').click }.to raise_unknown_object_exception(message)
     end
   end
@@ -199,57 +166,62 @@ describe 'Div' do
     end
   end
 
-  bug 'command correctly received, but action not taken', :safari, :w3c do
-    describe '#double_click' do
-      it 'fires the ondblclick event' do
-        div = browser.div(id: 'html_test')
-        div.scroll.to
-        div.double_click
-        expect(messages).to include('double clicked')
-      end
+  describe '#double_click',
+           except: {browser: :safari, reason: 'command correctly received, but action not taken'} do
+    it 'fires the ondblclick event' do
+      div = browser.div(id: 'html_test')
+      div.double_click
+      expect(messages).to include('double clicked')
     end
 
-    describe '#double_click!' do
-      it 'fires the ondblclick event' do
-        browser.div(id: 'html_test').double_click!
-        expect(messages).to include('double clicked')
-      end
+    it 'fires the ondblclick event with specified scroll position' do
+      div = browser.div(id: 'html_test')
+      div.double_click(scroll_to: :center)
+      expect(messages).to include('double clicked')
+    end
+  end
+
+  describe '#double_click!' do
+    it 'fires the ondblclick event' do
+      browser.div(id: 'html_test').double_click!
+      expect(messages).to include('double clicked')
+    end
+  end
+
+  describe '#right_click' do
+    it 'fires the oncontextmenu event' do
+      browser.goto(WatirSpec.url_for('right_click.html'))
+      browser.div(id: 'click').right_click
+      expect(messages.first).to eq 'right-clicked'
     end
 
-    describe '#right_click' do
-      it 'fires the oncontextmenu event' do
-        browser.goto(WatirSpec.url_for('right_click.html'))
-        browser.div(id: 'click').right_click
-        expect(messages.first).to eq 'right-clicked'
-      end
+    it 'accepts modifiers', except: {browser: :ie} do
+      browser.goto(WatirSpec.url_for('right_click.html'))
+      browser.div(id: 'click-logger').right_click(:control, :alt)
+      expect(event_log.first).to eq('control=true alt=true')
+    end
 
-      it 'accepts modifiers' do
-        browser.goto(WatirSpec.url_for('right_click.html'))
-        browser.div(id: 'click-logger').right_click(:shift, :alt)
-        expect(event_log.first).to eq('shift=true alt=true')
-      end
+    it 'accepts modifiers with scroll position', except: {browser: :ie} do
+      browser.goto(WatirSpec.url_for('right_click.html'))
+      browser.div(id: 'click-logger').right_click(:control, :alt, scroll_to: :center)
+      expect(event_log.first).to eq('control=true alt=true')
+    end
+
+    it 'scrolls' do
+      browser.del(class: 'footer').double_click
+      puts 'yes?'
     end
   end
 
   describe '#html' do
-    not_compliant_on :internet_explorer do
-      it 'returns the HTML of the element' do
-        html = browser.div(id: 'footer').html.downcase
-        expect(html).to include('id="footer"')
-        expect(html).to include('title="closing remarks"')
-        expect(html).to include('class="profile"')
+    it 'returns the HTML of the element' do
+      html = browser.div(id: 'footer').html.downcase
+      expect(html).to include('id="footer"')
+      expect(html).to include('title="closing remarks"')
+      expect(html).to include('class="profile"')
 
-        expect(html).to_not include('<div id="content">')
-        expect(html).to_not include('</body>')
-      end
-    end
-
-    deviates_on :internet_explorer do
-      it 'returns the HTML of the element' do
-        html = browser.div(id: 'footer').html.downcase
-        expect(html).to include('title="closing remarks"')
-        expect(html).to_not include('</body>')
-      end
+      expect(html).to_not include('<div id="content">')
+      expect(html).to_not include('</body>')
     end
   end
 end

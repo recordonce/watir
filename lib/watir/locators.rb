@@ -14,6 +14,10 @@ require 'watir/locators/button/matcher'
 require 'watir/locators/cell/selector_builder'
 require 'watir/locators/cell/selector_builder/xpath'
 
+require 'watir/locators/option/matcher'
+require 'watir/locators/option/selector_builder'
+require 'watir/locators/option/selector_builder/xpath'
+
 require 'watir/locators/row/selector_builder'
 require 'watir/locators/row/selector_builder/xpath'
 
@@ -26,11 +30,7 @@ require 'watir/locators/text_field/matcher'
 
 module Watir
   module Locators
-    W3C_FINDERS = %i[css
-                     link
-                     link_text
-                     partial_link_text
-                     xpath].freeze
+    W3C_FINDERS = %i[css xpath].freeze
 
     module ClassHelpers
       def locator_class
@@ -55,9 +55,7 @@ module Watir
       end
 
       def class_from_string(string)
-        Kernel.const_get(string)
-      rescue NameError
-        nil
+        Watir.const_get(string) if Watir.const_defined?(string)
       end
 
       def element_class_name

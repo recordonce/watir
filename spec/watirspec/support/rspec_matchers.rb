@@ -1,25 +1,12 @@
 if defined?(RSpec)
-  DEPRECATION_WARNINGS = %i[selector_parameters
-                            element_cache
-                            ready_state
-                            caption
-                            class_array
-                            use_capabilities
-                            visible_text
-                            link_text
-                            text_regexp
-                            stale_exists
-                            stale_visible
-                            stale_present
-                            select_by
-                            value_button
-                            wait_until_present
-                            wait_while_present].freeze
+  DEPRECATION_WARNINGS = %i[timeouts].freeze
 
   DEPRECATION_WARNINGS.each do |deprecation|
     RSpec::Matchers.define "have_deprecated_#{deprecation}" do
       match do |actual|
-        warning = /\[DEPRECATION\] \["#{deprecation}"\]/
+        return actual.call if ENV['IGNORE_DEPRECATIONS']
+
+        warning = /\[DEPRECATION\] \["#{deprecation}"/
         expect {
           actual.call
           @stdout_message = File.read $stdout if $stdout.is_a?(File)
@@ -116,27 +103,28 @@ if defined?(RSpec)
     end
   end
 
-  RSpec::Matchers.define :execute_immediately do |timeout: 10|
+  RSpec::Matchers.define :execute_when_satisfied do |min: 0, max: nil|
+    max ||= min + 1
     match do |actual|
       original_timeout = Watir.default_timeout
-      Watir.default_timeout = timeout
+      Watir.default_timeout = max
       begin
         start_time = ::Time.now
         actual.call
         @time_difference = ::Time.now - start_time
-        @time_difference < timeout
+        @time_difference > min && @time_difference < max
       ensure
         Watir.default_timeout = original_timeout
       end
     end
 
     failure_message_when_negated do
-      "expected action to take more than provided timeout (#{timeout} seconds), " \
+      "expected action to take less than #{min} seconds or more than #{max} seconds, " \
       "instead it took #{@time_difference} seconds"
     end
 
     failure_message do
-      "expected action to take less than provided timeout (#{timeout} seconds), " \
+      "expected action to take more than #{min} seconds and less than #{max} seconds, " \
       "instead it took #{@time_difference} seconds"
     end
 
@@ -147,7 +135,7 @@ if defined?(RSpec)
 
   RSpec::Matchers.define :exist do |*args|
     match do |actual|
-      actual.exists?(*args)
+      actual.exist?(*args)
     end
 
     failure_message do |obj|

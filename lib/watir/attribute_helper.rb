@@ -29,7 +29,7 @@ module Watir
 
     def attribute_list
       @attribute_list ||= (typed_attributes.values.flatten +
-                           ancestors[1..-1].map { |e|
+                           ancestors[1..].map { |e|
                              e.attribute_list if e.respond_to?(:attribute_list)
                            }.compact.flatten
                           ).uniq
@@ -46,6 +46,8 @@ module Watir
     #  @return [$1] value of $3 property
     #
     def attribute(type, method, attr)
+      return if method_defined?(method)
+
       typed_attributes[type] << [method, attr]
       define_attribute(type, method, attr)
     end

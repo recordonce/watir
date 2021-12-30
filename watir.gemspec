@@ -6,7 +6,7 @@ require 'watir/version'
 Gem::Specification.new do |s|
   s.name = 'watir'
   s.version = Watir::VERSION
-  s.required_ruby_version = '>= 2.3.0'
+  s.required_ruby_version = '>= 2.6.0'
 
   s.platform = Gem::Platform::RUBY
   s.authors = ['Alex Rodionov', 'Titus Fortner', 'Justin Ko']
@@ -25,22 +25,21 @@ Gem::Specification.new do |s|
   s.executables = `git ls-files -- bin/*`.split("\n").map { |f| File.basename(f) }
   s.require_paths = ['lib']
 
-  s.add_dependency 'selenium-webdriver', '~> 3.6'
-  s.add_runtime_dependency 'regexp_parser', '~>1.2'
+  s.add_dependency 'selenium-webdriver', '~> 4.0'
+  s.add_runtime_dependency 'regexp_parser', '>= 1.2', '< 3'
 
   s.add_development_dependency 'activesupport', '~> 4.0', '>= 4.1.11' # for pluralization during code generation
-  s.add_development_dependency 'coveralls'
+  s.add_development_dependency 'coveralls_reborn'
   s.add_development_dependency 'fuubar'
   s.add_development_dependency 'nokogiri'
   s.add_development_dependency 'pry'
-  s.add_development_dependency 'rake', '~> 0.9.2'
+  s.add_development_dependency 'rake', '>= 12.3.3'
   s.add_development_dependency 'rspec', '~> 3.0'
   s.add_development_dependency 'rspec-retry'
   s.add_development_dependency 'rubocop', '~> 0.59'
   s.add_development_dependency 'selenium_statistics'
-  s.add_development_dependency 'simplecov'
   s.add_development_dependency 'simplecov-console'
-  s.add_development_dependency 'webdrivers', '~> 4.1.0'
+  s.add_development_dependency 'webdrivers', '~> 4.7'
   s.add_development_dependency 'webidl', '>= 0.2.2'
   s.add_development_dependency 'yard', '> 0.8.2.1'
   s.add_development_dependency 'yard-doctest', '~> 0.1.14'

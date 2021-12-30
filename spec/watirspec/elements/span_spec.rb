@@ -17,8 +17,8 @@ describe 'Span' do
       expect(browser.span(xpath: "//span[@id='lead']")).to exist
     end
 
-    it 'visible text is found by regular expression with text locator' do
-      expect(browser.span(text: /Dubito, ergo cogito, ergo sum/)).to exist
+    it 'visible text is found by regular expression with visible text locator' do
+      expect(browser.span(visible_text: /Dubito, ergo cogito, ergo sum/)).to exist
     end
 
     it 'returns the first span if given no args' do
@@ -100,18 +100,16 @@ describe 'Span' do
   end
 
   # Other
-  not_compliant_on :headless do
-    describe '#click' do
-      it 'fires events' do
-        expect(browser.span(class: 'footer').text).to_not include('Javascript')
-        browser.span(class: 'footer').click
-        expect(browser.span(class: 'footer').text).to include('Javascript')
-      end
+  describe '#click', except: {headless: true} do
+    it 'fires events' do
+      expect(browser.span(class: 'footer').text).to_not include('Javascript')
+      browser.span(class: 'footer').click
+      expect(browser.span(class: 'footer').text).to include('Javascript')
+    end
 
-      it "raises UnknownObjectException if the span doesn't exist" do
-        expect { browser.span(id: 'no_such_id').click }.to raise_unknown_object_exception
-        expect { browser.span(title: 'no_such_title').click }.to raise_unknown_object_exception
-      end
+    it "raises UnknownObjectException if the span doesn't exist" do
+      expect { browser.span(id: 'no_such_id').click }.to raise_unknown_object_exception
+      expect { browser.span(title: 'no_such_title').click }.to raise_unknown_object_exception
     end
   end
 end

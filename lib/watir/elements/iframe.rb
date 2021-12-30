@@ -44,8 +44,9 @@ module Watir
     # @see Watir::Browser#execute_script
     #
 
-    def execute_script(script, *args)
+    def execute_script(script, *args, function_name: nil)
       args.map! do |e|
+        Watir.logger.info "Executing Script on Frame: #{function_name}" if function_name
         e.is_a?(Element) ? e.wait_until(&:exists?).wd : e
       end
       returned = driver.execute_script(script, *args)
@@ -90,12 +91,12 @@ module Watir
   end # FrameCollection
 
   module Container
-    def frame(*args)
-      Frame.new(self, extract_selector(args).merge(tag_name: 'frame'))
+    def frame(opts = {})
+      Frame.new(self, opts.merge(tag_name: 'frame'))
     end
 
-    def frames(*args)
-      FrameCollection.new(self, extract_selector(args).merge(tag_name: 'frame'))
+    def frames(opts = {})
+      FrameCollection.new(self, opts.merge(tag_name: 'frame'))
     end
   end # Container
 
@@ -125,7 +126,6 @@ module Watir
     def switch!
       @driver.switch_to.frame @element
       @browser.default_context = false
-      @browser.after_hooks.run
     rescue Selenium::WebDriver::Error::NoSuchFrameError => e
       raise UnknownFrameException, e.message
     end
@@ -134,8 +134,8 @@ module Watir
       @element
     end
 
-    def respond_to_missing?(meth, _include_private = false)
-      @driver.respond_to?(meth) || @element.respond_to?(meth) || super
+    def respond_to_missing?(meth, _include_private)
+      @driver.respond_to?(meth) || @element.respond_to?(meth) || super(meth, false)
     end
 
     def method_missing(meth, *args, &blk)

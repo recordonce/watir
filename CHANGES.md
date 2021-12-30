@@ -1,3 +1,110 @@
+### 7.1.0 (2021-11-15)
+
+* Add automatic scroll to `Element#click` with method parameters to ensure element is in viewport
+* Provide `:scroll_to` parameter for element methods implemented with `Actions` class (thanks osadasami #948, #949)
+* Allow `:scroll_to` parameter to accept `nil` argument to avoid automatic scrolling
+* Implement `Element#in_viewport?`
+* Fix but where `Scroll#to` for `Browser` with `:center` argument did not scroll to center of page
+* Change `Element#obscured?` to only scroll when element out of viewport and then scroll to bottom instead of top
+
+### 7.0.0 (2021-10-18)
+
+* Requires Selenium 4.0.0+
+* Requires Ruby 2.6+
+* Implement `Window#minimize`
+* Implement `Window#full_screen`
+
+### 7.0.0.beta5 (2021-08-02)
+
+* Add support for passing in Proxy and proxy Hash to Capabilities (#933)
+* Trigger change event when setting values on date and date-time fields (#938)
+* Allow user to obtain Capabilities instance from Browser instance
+
+### 7.0.0.beta4 (2021-05-29)
+
+* Fix Bug in using negative class names within a collection (#934)
+
+### 7.0.0.beta3 (2021-05-05)
+
+* Fix Bug preventing proper use of vendor extension capabilities
+* Changed how timeouts are supported in Watir Capabilities (#932)
+* Changed the default Alert Behavior not to automatically get dismissed when an exception happens (#931)
+
+### 7.0.0.beta2 (2021-03-28)
+
+* Replace Watir Logger implementation with Selenium Logger subclass
+* Change Watir Guards to use Selenium's new Guards. Tests run as pending when guarded.
+* Implement `#set` as standard interface for each Input Element (#405)
+* Implement `Element#set` to take correct `#set` behavior based on evaluated element (#664)
+* Optimize Performance for Select Lists (#846)
+* Allow user to set values on Select List exclusively by `:label`, `:text`, or `:value` (#846)
+* Allow user to check if option selected in Select List by `:label`, `:text`, or `:value` (#929)
+* Implement `Window#restore!` to return to original Window and close all others (#923)
+* Minor performance improvement for iterating over windows (#923)
+* Implement `Browser#closed?`; same as `Browser#exists?` without the Windows checks (#923)
+* Update methods that use Selenium's Actions class to scroll element into view before acting (#847)
+* Fix bug for `:text` locator with `Regexp` value based on whitespace (#924)
+* Remove executing after hooks when changing frames (#888)
+
+### 7.0.0.beta1 (2021-03-18)
+
+* Requires Selenium 4
+* Supports Ruby 3
+* Add support for Microsoft Edge Chromium
+* Remove support for all deprecated functionality
+
+### 6.19.1 (2021-03-17)
+
+* Fix bug preventing using Selenium 4
+* Fix bug preventing non-xml characters in attributes (#787)
+
+### 6.19.0 (2021-03-12)
+
+* Create custom Watir HTTP Client
+* Require minimum of Selenium 3.142.7
+* Add support for starting browser with :http_client and :service hashes
+* Allow inferring desired browser from Capabilities or Options if browser not specified
+* Deprecate WindowCollection#to_a method
+* Deprecate starting browser with both Capabilities and Options
+* Deprecate starting browser with both URL and Service
+* Deprecate using :desired_capabilities
+* Deprecate starting browser service keywords in top level Hash
+* Deprecate using :remote to start a browser; browser name must be specified
+* Deprecate sending unknown keywords into the top level
+* Fix bug preventing Safari Options from being recognized
+* Fix bug preventing options provided without :remote keyword from being properly recognized (#812, #870)
+* Fix bug preventing :headless from being recognized when :options specified (#692)
+
+### 6.18.0 (2021-02-26)
+
+* Implement `WindowCollection` to manage multiple `Window` objects
+* Add support for locating `Window` by `:element`
+* Deprecate locating `Window` by `:index`
+* Deprecate `Select#select_all` in favor of `#select` and an `Array`
+* Implement `Browser#switch_window` (#849)
+* Add support for `Numeric` attribute values to `Waitable`
+* Allow users to specify Selenium 4 in their projects
+* Update stale element handling behavior to match webdriver spec (#905 #909)
+* Implement `Waitable` for `ElementCollection` (#853 #857)
+* Improve performance for nested elements (#843)
+* Less strict version check for `regexp_parser` gem (thanks Pavel Lobashov)
+
+### 6.17.0 (2020-08-27)
+* Require Ruby > 2.5
+* Implement Logger#selenium= to set selenium level from Watir
+* Implement FileField#upload
+* Fix bug with staleness handling in #exist and #present? (#853 & #852)
+* Fix bug when locating elements by text with RegExp (#866 #871)
+* Implement modifiers for `Element#right_click` (thanks Lakshya Kapoor #861)
+* Updated locator code to adhere to spec on what attributes are case sensitive (#507 #856)
+* Fix locating bug when iframe is nested under another element (thanks Matthew Mazaika #885 #886)
+* Deprecate Element#scroll_into_view in favor of the new Scroll methods (#884)
+* Fix threading bugs by allowing each Browser instance its own Timer (#881)
+* Allow adjacent locators to return Input subtype when applicable (#878)
+* Removed unnecessary reference to rubyforge (thanks olleolleolle #874)
+* Removed deprecated Selenium classes (thanks joesho112358 #867)
+* Add support for :service parameter for initializing Browser
+
 ### 6.16.5 (2018-12-25)
 
 * Fix bug with nested elements using scopes (#842)

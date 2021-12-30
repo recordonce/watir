@@ -14,9 +14,7 @@ describe 'Link' do
       expect(browser.link(title: /link_title_2/)).to exist
       expect(browser.link(text: 'Link 2')).to exist
       expect(browser.link(text: /Link 2/i)).to exist
-      not_compliant_on :internet_explorer do
-        expect(browser.link(href: 'non_control_elements.html')).to exist
-      end
+      expect(browser.link(href: 'non_control_elements.html')).to exist
       expect(browser.link(href: /non_control_elements.html/)).to exist
       expect(browser.link(index: 1)).to exist
       expect(browser.link(xpath: "//a[@id='link_2']")).to exist
@@ -123,33 +121,36 @@ describe 'Link' do
   end
 
   # Manipulation methods
+  # Note: the #wait_until calls are hacks for Safari specifically
   describe '#click' do
     it 'finds an existing link by (text: String) and clicks it' do
-      browser.link(text: 'Link 3').click
-      expect(browser.text.include?('User administration')).to be true
+      element = browser.link(text: 'Link 3')
+      element.wait_until { |link| !link.exist? || link.click }
+      expect(browser.h1(text: 'User administration')).to exist
     end
 
     it 'finds an existing link by (text: Regexp) and clicks it' do
-      browser.link(href: /forms_with_input_elements/).click
-      expect(browser.text.include?('User administration')).to be true
+      element = browser.link(href: /forms_with_input_elements/)
+      element.wait_until { |link| !link.exist? || link.click }
+      expect(browser.h1(text: 'User administration')).to exist
     end
 
     it 'finds an existing link by (index: Integer) and clicks it' do
-      browser.link(index: 2).click
-      expect(browser.text.include?('User administration')).to be true
+      element = browser.link(index: 2)
+      element.wait_until { |link| !link.exist? || link.click }
+      expect(browser.h1(text: 'User administration')).to exist
     end
 
     it "raises an UnknownObjectException if the link doesn't exist" do
       expect { browser.link(index: 1337).click }.to raise_unknown_object_exception
     end
 
-    bug 'Safari throws a not interactable error', :safari do
-      it 'clicks a link with no text content but an img child' do
-        browser.goto WatirSpec.url_for('images.html')
-        browser.link(href: /definition_lists.html/).click
-        Watir::Wait.while { browser.title == 'Images' || browser.title == '' }
-        expect(browser.title).to eq 'definition_lists'
-      end
+    it 'clicks a link with no text content but an img child',
+       except: {browser: :safari, reason: 'Safari throws a not interactable error'} do
+      browser.goto WatirSpec.url_for('images.html')
+      browser.link(href: /definition_lists.html/).click
+      browser.wait_while(title: /^(Images|)$/)
+      expect(browser.title).to eq 'definition_lists'
     end
   end
 
@@ -165,19 +166,18 @@ describe 'Link' do
       expect(browser.link(visible_text: /Link 2/, class: 'external')).to exist
     end
 
-    bug 'Safari is not filtering out hidden text', :safari do
-      it 'finds links in spite of hidden text' do
-        browser.goto WatirSpec.url_for('non_control_elements.html')
+    it 'finds links in spite of hidden text',
+       except: {browser: :safari, reason: 'Safari is not filtering out hidden text'} do
+      browser.goto WatirSpec.url_for('non_control_elements.html')
 
-        expect(browser.link(visible_text: 'some visible')).to exist
-        expect(browser.link(visible_text: 'none visible')).not_to exist
-        expect(browser.link(visible_text: /none visible/)).not_to exist
-      end
+      expect(browser.link(visible_text: 'some visible')).to exist
+      expect(browser.link(visible_text: 'none visible')).not_to exist
+      expect(browser.link(visible_text: /none visible/)).not_to exist
     end
 
     it 'raises exception unless value is a String or a RegExp' do
       browser.goto WatirSpec.url_for('non_control_elements.html')
-      msg = /expected one of \[String, Regexp\], got 7\:(Fixnum|Integer)/
+      msg = /expected one of \[String, Regexp\], got 7:Integer/
       expect { browser.link(visible_text: 7).exists? }.to raise_exception(TypeError, msg)
     end
   end

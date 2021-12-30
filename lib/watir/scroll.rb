@@ -58,7 +58,8 @@ module Watir
       when :top, :start
         'window.scrollTo({left: 0, top: 0, behaviour: "smooth"});'
       when :center
-        'window.scrollTo({left: window.outerWidth / 2, top: window.outerHeight / 2, behaviour: "smooth"});'
+        y = '(document.body.scrollHeight - window.innerHeight) / 2 + document.body.getBoundingClientRect().top'
+        "window.scrollTo(window.outerWidth / 2, #{y});"
       when :bottom, :end
         'window.scrollTo({left: 0, top: document.body.scrollHeight, behavior: "smooth");'
       when Array

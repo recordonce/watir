@@ -1,7 +1,9 @@
 require 'watirspec'
 require 'spec_helper'
+require 'webdrivers'
+require 'selenium/webdriver/support/guards'
 
-Watir.default_timeout = 8
+Watir.default_timeout = 5
 
 if ENV['SELENIUM_STATS'] == 'true'
   require 'selenium_statistics'
@@ -20,21 +22,26 @@ class LocalConfig
   def configure
     set_webdriver
     set_browser_args
-    set_guard_proc
     load_webdrivers
   end
 
   private
 
   def load_webdrivers
-    case browser
-    when :chrome
-      Webdrivers::Chromedriver.update
-      Watir.logger.info "chromedriver version: #{Webdrivers::Chromedriver.current_version.version}"
-    when :firefox
-      Webdrivers::Geckodriver.update
-      Watir.logger.info "geckodriver version: #{Webdrivers::Geckodriver.current_version.version}"
-    end
+    @imp.driver_info = case browser
+                       when :chrome
+                         Webdrivers::Chromedriver.update
+                         "chromedriver version: #{Webdrivers::Chromedriver.current_version.version}"
+                       when :edge
+                         Webdrivers::Edgedriver.update
+                         "edgedriver version: #{Webdrivers::Edgedriver.current_version.version}"
+                       when :firefox
+                         Webdrivers::Geckodriver.update
+                         "geckodriver version: #{Webdrivers::Geckodriver.current_version.version}"
+                       when :ie
+                         Webdrivers::IEdriver.update
+                         "iedriver version: #{Webdrivers::IEdriver.current_version.version}"
+                       end
   end
 
   def set_webdriver
@@ -64,59 +71,24 @@ class LocalConfig
     args
   end
 
-  def set_guard_proc
-    matching_guards = add_guards
-
-    @imp.guard_proc = lambda { |args|
-      args.any? { |arg| matching_guards.include?(arg) }
-    }
-  end
-
-  def add_guards
-    matching_guards = common_guards
-    matching_guards << :local
-    matching_guards << [:local, browser]
-    matching_guards
-  end
-
-  def common_guards
-    matching_guards = [browser]
-    matching_guards << [browser, Selenium::WebDriver::Platform.os]
-    matching_guards << :relaxed_locate if Watir.relaxed_locate?
-    matching_guards << :headless if @imp.browser_args.last[:headless]
-    matching_guards << :w3c if ENV['W3C']
-
-    # TODO: Replace this with Selenium::WebDriver::Platform.ci after next Selenium Release
-    if ENV['APPVEYOR']
-      matching_guards << :appveyor
-      matching_guards << [browser, :appveyor]
-    end
-
-    if !Selenium::WebDriver::Platform.linux? || ENV['DESKTOP_SESSION']
-      # some specs (i.e. Window#maximize) needs a window manager on linux
-      matching_guards << :window_manager
-    end
-    matching_guards
-  end
-
   def firefox_args
     ENV['FIREFOX_BINARY'] ? {options: {binary: ENV['FIREFOX_BINARY']}} : {}
   end
 
-  def safari_args
+  def safari_preview_args
     {technology_preview: true}
   end
 
   def chrome_args
-    opts = {args: ['--disable-translate']}
+    opts = {options: {args: ['--disable-translate']}}
     opts[:headless] = true if ENV['HEADLESS'] == 'true'
-    opts[:options] = {binary: ENV['CHROME_BINARY']} if ENV['CHROME_BINARY'] == 'true'
-    opts[:options] = {options: {w3c: true}} if ENV['W3C'] == 'true'
+    opts[:options][:binary] = ENV['CHROME_BINARY'] if ENV['CHROME_BINARY']
     opts
   end
 
   class SelectorListener < Selenium::WebDriver::Support::AbstractEventListener
     def initialize
+      super
       @counts = Hash.new(0)
     end
 
@@ -171,3 +143,37 @@ else
 end
 
 WatirSpec.run!
+
+RSpec.configure do |config|
+  config.before do |example|
+    guards = Selenium::WebDriver::Support::Guards.new(example,
+                                                      bug_tracker: 'https://github.com/watir/watir/issues')
+
+    guards.add_condition(:browser, WatirSpec.implementation.browser_args.first)
+    guards.add_condition(:platform, Selenium::WebDriver::Platform.os)
+
+    headless = WatirSpec.implementation.browser_args.last[:headless]
+    guards.add_condition(:headless, headless)
+
+    guards.add_condition(:ci, ENV['DESKTOP_SESSION'].nil?)
+
+    window_manager = !Selenium::WebDriver::Platform.linux? || !ENV['DESKTOP_SESSION'].nil?
+    guards.add_condition(:window_manager, window_manager)
+
+    remote = ENV['USE_REMOTE'] == 'true'
+    guards.add_condition(:remote, remote)
+
+    results = guards.disposition
+    send(*results) if results
+
+    $browser = WatirSpec.new_browser if $browser.nil? || $browser.closed?
+  end
+
+  if ENV['AUTOMATIC_RETRY']
+    require 'rspec/retry'
+    config.verbose_retry = true
+    config.display_try_failure_messages = true
+    config.default_retry_count = 3
+    config.exceptions_to_retry = [IOError, Net::ReadTimeout]
+  end
+end

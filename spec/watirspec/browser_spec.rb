@@ -2,36 +2,56 @@ require 'watirspec_helper'
 
 describe 'Browser' do
   describe '#exists?' do
-    after do
-      browser.original_window.use
-      browser.windows.reject(&:current?).each(&:close)
-    end
-
     it 'returns true if we are at a page' do
       browser.goto(WatirSpec.url_for('non_control_elements.html'))
       expect(browser).to exist
     end
 
-    bug 'Clicking an Element that Closes a Window is returning NoMatchingWindowFoundException', :safari do
-      it 'returns false if window is closed' do
-        browser.goto WatirSpec.url_for('window_switching.html')
-        browser.a(id: 'open').click
-        Watir::Wait.until { browser.windows.size == 2 }
-        browser.window(title: 'closeable window').use
-        browser.a(id: 'close').click
-        Watir::Wait.until { browser.windows.size == 1 }
-        expect(browser.exists?).to be false
-      end
+    it 'returns false if window is closed',
+       except: {browser: :safari,
+                reason: 'Clicking an Element that Closes a Window is returning NoMatchingWindowFoundException'} do
+      browser.goto WatirSpec.url_for('window_switching.html')
+      browser.a(id: 'open').click
+      browser.windows.wait_until(size: 2)
+      browser.window(title: 'closeable window').use
+      browser.a(id: 'close').click
+      browser.windows.wait_until(size: 1)
+      expect(browser.exists?).to be false
+    ensure
+      browser.windows.restore!
     end
 
     it 'returns false after Browser#close' do
       browser.close
       expect(browser).to_not exist
-      $browser = WatirSpec.new_browser
     end
   end
 
-  # this should be rewritten - the actual string returned varies a lot between implementations
+  describe '#closed?' do
+    it 'returns false if not closed' do
+      expect(browser).to_not be_closed
+    end
+
+    it 'returns false if window is closed but browser is not',
+       except: {browser: :safari,
+                reason: 'Clicking an Element that Closes a Window is returning NoMatchingWindowFoundException'} do
+      browser.goto WatirSpec.url_for('window_switching.html')
+      browser.a(id: 'open').click
+      browser.windows.wait_until(size: 2)
+      browser.window(title: 'closeable window').use
+      browser.a(id: 'close').click
+      browser.windows.wait_until(size: 1)
+      expect(browser).to_not be_closed
+    ensure
+      browser.windows.restore!
+    end
+
+    it 'returns false after Browser#close' do
+      browser.close
+      expect(browser).to be_closed
+    end
+  end
+
   describe '#html' do
     it 'returns the DOM of the page as an HTML string' do
       browser.goto(WatirSpec.url_for('right_click.html'))
@@ -40,14 +60,7 @@ describe 'Browser' do
       expect(html).to match(/^<html/)
       expect(html).to include('<meta ')
       expect(html).to include(' content="text/html; charset=utf-8"')
-
-      not_compliant_on :internet_explorer do
-        expect(html).to include(' http-equiv="content-type"')
-      end
-
-      deviates_on :internet_explorer do
-        expect(html).to include(' http-equiv=content-type')
-      end
+      expect(html).to match(/http-equiv=("|)content-type/)
     end
   end
 
@@ -59,12 +72,8 @@ describe 'Browser' do
   end
 
   describe '#status' do
-    # for Firefox, this needs to be enabled in
-    # Preferences -> Content -> Advanced -> Change status bar text
-    #
-    # for IE9, this needs to be enabled in
-    # View => Toolbars -> Status bar
-    it 'returns the current value of window.status' do
+    it 'returns the current value of window.status',
+       except: {browser: :ie, reason: 'Status bar not enabled by default'} do
       browser.goto(WatirSpec.url_for('non_control_elements.html'))
 
       browser.execute_script "window.status = 'All done!';"
@@ -72,11 +81,9 @@ describe 'Browser' do
     end
   end
 
-  bug 'Capitalization issue', :safari do
-    describe '#name' do
-      it 'returns browser name' do
-        expect(browser.name).to eq(WatirSpec.implementation.browser_args.first)
-      end
+  describe '#name' do
+    it 'returns browser name' do
+      expect(browser.name).to eq(WatirSpec.implementation.browser_name)
     end
   end
 
@@ -112,12 +119,11 @@ describe 'Browser' do
       expect(browser.text.strip).to eq 'This is text/plain'
     end
 
-    bug 'Safari does not strip text', :safari do
-      it 'returns text of top most browsing context' do
-        browser.goto(WatirSpec.url_for('nested_iframes.html'))
-        browser.iframe(id: 'two').h3.exists?
-        expect(browser.text).to eq 'Top Layer'
-      end
+    it 'returns text of top most browsing context', except: {browser: :safari,
+                                                             reason: 'Safari does not strip text'} do
+      browser.goto(WatirSpec.url_for('nested_iframes.html'))
+      browser.iframe(id: 'two').h3.exists?
+      expect(browser.text).to eq 'Top Layer'
     end
   end
 
@@ -148,200 +154,183 @@ describe 'Browser' do
     end
   end
 
-  describe '#new' do
-    not_compliant_on :remote, :appveyor do
-      context 'with parameters' do
-        let(:url) { 'http://localhost:4544/wd/hub/' }
+  # TODO: Temporarily disabling this before moving it to unit tests
+  xdescribe '#new' do
+    context 'with parameters', except: {remote: true} do
+      let(:url) { 'http://localhost:4544/wd/hub/' }
 
-        before(:all) do
-          @original = WatirSpec.implementation.clone
+      before(:all) do
+        @original = WatirSpec.implementation.clone
 
-          require 'watirspec/remote_server'
-          args = ["-Dwebdriver.chrome.driver=#{Webdrivers::Chromedriver.driver_path}",
-                  "-Dwebdriver.gecko.driver=#{Webdrivers::Geckodriver.driver_path}"]
-          WatirSpec::RemoteServer.new.start(4544, args: args)
-          browser.close
-        end
+        require 'watirspec/remote_server'
+        args = ["-Dwebdriver.chrome.driver=#{Webdrivers::Chromedriver.driver_path}",
+                "-Dwebdriver.gecko.driver=#{Webdrivers::Geckodriver.driver_path}"]
+        WatirSpec::RemoteServer.new.start(4544, args: args)
+        browser.close
+      end
 
-        before(:each) do
-          @opts = WatirSpec.implementation.browser_args.last
-        end
+      before(:each) do
+        @opts = WatirSpec.implementation.browser_args.last
+      end
 
-        after(:each) do
-          @new_browser.close
-          WatirSpec.implementation = @original.clone
-        end
+      after(:each) do
+        @new_browser.close
+        WatirSpec.implementation = @original.clone
+      end
 
-        after(:all) do
-          $browser = WatirSpec.new_browser
-        end
+      it 'uses remote client based on provided url' do
+        @opts[:url] = url
+        @new_browser = WatirSpec.new_browser
 
-        it 'uses remote client based on provided url' do
-          @opts[:url] = url
+        server_url = @new_browser.driver.instance_variable_get('@bridge').http.instance_variable_get('@server_url')
+        expect(server_url).to eq URI.parse(url)
+      end
+
+      it 'sets client timeout' do
+        @opts.merge!(url: url, open_timeout: 44, read_timeout: 47)
+        @new_browser = WatirSpec.new_browser
+
+        http = @new_browser.driver.instance_variable_get('@bridge').http
+
+        expect(http.open_timeout).to eq 44
+        expect(http.read_timeout).to eq 47
+      end
+
+      it 'accepts http_client' do
+        http_client = Selenium::WebDriver::Remote::Http::Default.new
+        @opts[:url] = url
+        @opts[:http_client] = http_client
+        @new_browser = WatirSpec.new_browser
+
+        expect(@new_browser.driver.instance_variable_get('@bridge').http).to eq http_client
+      end
+
+      it 'accepts Remote::Capabilities instance as :desired_capabilities', only: {browser: :firefox} do
+        caps = Selenium::WebDriver::Remote::Capabilities.firefox(accept_insecure_certs: true)
+        @opts[:url] = url
+        @opts[:desired_capabilities] = caps
+
+        msg = /You can pass values directly into Watir::Browser opt without needing to use :desired_capabilities/
+        expect { @new_browser = WatirSpec.new_browser }.to output(msg).to_stdout_from_any_process
+        expect(@new_browser.driver.capabilities.accept_insecure_certs).to eq true
+      end
+
+      it 'accepts individual driver capabilities', only: {browser: :firefox} do
+        @opts[:accept_insecure_certs] = true
+        @new_browser = WatirSpec.new_browser
+
+        expect(@new_browser.driver.capabilities[:accept_insecure_certs]).to eq true
+      end
+
+      it 'accepts profile', only: {browser: :firefox} do
+        home_page = WatirSpec.url_for('special_chars.html')
+        profile = Selenium::WebDriver::Firefox::Profile.new
+        profile['browser.startup.homepage'] = home_page
+        profile['browser.startup.page'] = 1
+        @opts[:profile] = profile
+
+        @new_browser = WatirSpec.new_browser
+
+        expect(@new_browser.url).to eq home_page
+      end
+
+      context 'chrome arguments', only: {browser: :chrome} do
+        it 'accepts browser options' do
+          @opts[:options] = {emulation: {userAgent: 'foo;bar'}}
+
           @new_browser = WatirSpec.new_browser
 
+          ua = @new_browser.execute_script 'return window.navigator.userAgent'
+          expect(ua).to eq('foo;bar')
+        end
+
+        it 'uses remote client when specifying remote' do
+          opts = {desired_capabilities: Selenium::WebDriver::Remote::Capabilities.chrome,
+                  url: url}
+          WatirSpec.implementation.browser_args = [:remote, opts]
+          msg = /You can pass values directly into Watir::Browser opt without needing to use :desired_capabilities/
+          expect { @new_browser = WatirSpec.new_browser }.to output(msg).to_stdout_from_any_process
           server_url = @new_browser.driver.instance_variable_get('@bridge').http.instance_variable_get('@server_url')
           expect(server_url).to eq URI.parse(url)
         end
 
-        it 'sets client timeout' do
-          @opts.merge!(url: url, open_timeout: 44, read_timeout: 47)
+        it 'accepts switches argument' do
+          @opts.delete :args
+          @opts[:switches] = ['--window-size=600,700']
+
+          @new_browser = WatirSpec.new_browser
+          size = @new_browser.window.size
+          expect(size['height']).to eq 700
+          expect(size['width']).to eq 600
+        end
+
+        it 'accepts Chrome::Options instance as :options', except: {headless: true} do
+          chrome_opts = Selenium::WebDriver::Chrome::Options.new(emulation: {userAgent: 'foo;bar'})
+          @opts.delete :args
+          @opts[:options] = chrome_opts
+
           @new_browser = WatirSpec.new_browser
 
-          http = @new_browser.driver.instance_variable_get('@bridge').http
-
-          expect(http.open_timeout).to eq 44
-          expect(http.read_timeout).to eq 47
-        end
-
-        it 'accepts http_client' do
-          http_client = Selenium::WebDriver::Remote::Http::Default.new
-          @opts[:url] = url
-          @opts[:http_client] = http_client
-          @new_browser = WatirSpec.new_browser
-
-          expect(@new_browser.driver.instance_variable_get('@bridge').http).to eq http_client
-        end
-
-        compliant_on :firefox do
-          it 'accepts Remote::Capabilities instance as :desired_capabilities' do
-            caps = Selenium::WebDriver::Remote::Capabilities.firefox(accept_insecure_certs: true)
-            @opts[:url] = url
-            @opts[:desired_capabilities] = caps
-
-            msg = /You can pass values directly into Watir::Browser opt without needing to use :desired_capabilities/
-            expect { @new_browser = WatirSpec.new_browser }.to output(msg).to_stdout_from_any_process
-            expect(@new_browser.driver.capabilities.accept_insecure_certs).to eq true
-          end
-        end
-
-        compliant_on :firefox do
-          it 'accepts individual driver capabilities' do
-            @opts[:accept_insecure_certs] = true
-            @new_browser = WatirSpec.new_browser
-
-            expect(@new_browser.driver.capabilities[:accept_insecure_certs]).to eq true
-          end
-        end
-
-        compliant_on :firefox do
-          it 'accepts profile' do
-            home_page = WatirSpec.url_for('special_chars.html')
-            profile = Selenium::WebDriver::Firefox::Profile.new
-            profile['browser.startup.homepage'] = home_page
-            profile['browser.startup.page'] = 1
-            @opts[:profile] = profile
-
-            @new_browser = WatirSpec.new_browser
-
-            expect(@new_browser.url).to eq home_page
-          end
-        end
-
-        compliant_on :chrome do
-          it 'accepts browser options' do
-            @opts[:options] = {emulation: {userAgent: 'foo;bar'}}
-
-            @new_browser = WatirSpec.new_browser
-
-            ua = @new_browser.execute_script 'return window.navigator.userAgent'
-            expect(ua).to eq('foo;bar')
-          end
-
-          it 'uses remote client when specifying remote' do
-            opts = {desired_capabilities: Selenium::WebDriver::Remote::Capabilities.chrome,
-                    url: url}
-            WatirSpec.implementation.browser_args = [:remote, opts]
-            msg = /You can pass values directly into Watir::Browser opt without needing to use :desired_capabilities/
-            expect { @new_browser = WatirSpec.new_browser }.to output(msg).to_stdout_from_any_process
-            server_url = @new_browser.driver.instance_variable_get('@bridge').http.instance_variable_get('@server_url')
-            expect(server_url).to eq URI.parse(url)
-          end
-
-          it 'accepts switches argument' do
-            @opts.delete :args
-            @opts[:switches] = ['--window-size=600,700']
-
-            @new_browser = WatirSpec.new_browser
-            size = @new_browser.window.size
-            expect(size['height']).to eq 700
-            expect(size['width']).to eq 600
-          end
-
-          not_compliant_on :headless do
-            it 'accepts Chrome::Options instance as :options' do
-              chrome_opts = Selenium::WebDriver::Chrome::Options.new(emulation: {userAgent: 'foo;bar'})
-              @opts.delete :args
-              @opts[:options] = chrome_opts
-
-              @new_browser = WatirSpec.new_browser
-
-              ua = @new_browser.execute_script 'return window.navigator.userAgent'
-              expect(ua).to eq('foo;bar')
-            end
-          end
+          ua = @new_browser.execute_script 'return window.navigator.userAgent'
+          expect(ua).to eq('foo;bar')
         end
       end
+    end
 
-      compliant_on :chrome do
-        not_compliant_on :watigiri do
-          it 'takes port and driver_opt as arguments' do
-            @original = WatirSpec.implementation.clone
-            browser.close
-            @opts = WatirSpec.implementation.browser_args.last
+    it 'takes service as argument', only: {browser: :chrome} do
+      @original = WatirSpec.implementation.clone
+      browser.close
+      @opts = WatirSpec.implementation.browser_args.last
+      browser_name = WatirSpec.implementation.browser_args.first
 
-            @opts.merge!(port: '2314',
-                         driver_opts: {args: ['foo']},
-                         listener: LocalConfig::SelectorListener.new)
+      service = Selenium::WebDriver::Service.send(browser_name, port: '2314', args: ['foo'])
 
-            @new_browser = WatirSpec.new_browser
+      @opts.merge!(service: service,
+                   listener: LocalConfig::SelectorListener.new)
 
-            bridge = @new_browser.wd.instance_variable_get('@bridge')
-            expect(bridge).to be_a Selenium::WebDriver::Support::EventFiringBridge
-            service = @new_browser.wd.instance_variable_get('@service')
-            expect(service.instance_variable_get('@extra_args')).to eq ['foo']
-            expect(service.instance_variable_get('@port')).to eq 2314
+      @new_browser = WatirSpec.new_browser
 
-            @new_browser.close
-            WatirSpec.implementation = @original.clone
-            $browser = WatirSpec.new_browser
-          end
-        end
-      end
+      bridge = @new_browser.wd.instance_variable_get('@bridge')
+      expect(bridge).to be_a Selenium::WebDriver::Support::EventFiringBridge
+      service = @new_browser.wd.instance_variable_get('@service')
+      expect(service.instance_variable_get('@extra_args')).to eq ['foo']
+      expect(service.instance_variable_get('@port')).to eq 2314
 
-      it 'takes a driver instance as argument' do
-        mock_driver = double(Selenium::WebDriver::Driver)
-        expect(Selenium::WebDriver::Driver).to receive(:===).with(mock_driver).and_return(true)
-        expect { Watir::Browser.new(mock_driver) }.to_not raise_error
-      end
+      @new_browser.close
+    ensure
+      WatirSpec.implementation = @original.clone
+    end
 
-      it 'raises ArgumentError for invalid args' do
-        expect { Watir::Browser.new(Object.new) }.to raise_error(ArgumentError)
-      end
+    it 'takes a driver instance as argument' do
+      mock_driver = double(Selenium::WebDriver::Driver)
+      expect(Selenium::WebDriver::Driver).to receive(:===).with(mock_driver).and_return(true)
+      expect { Watir::Browser.new(mock_driver) }.to_not raise_error
+    end
+
+    it 'raises ArgumentError for invalid args' do
+      expect { Watir::Browser.new(Object.new) }.to raise_error(ArgumentError)
     end
   end
 
   describe '.start' do
     it 'goes to the given URL and return an instance of itself' do
       browser.close
+      sleep 1
       driver, args = WatirSpec.implementation.browser_args
       b = Watir::Browser.start(WatirSpec.url_for('non_control_elements.html'), driver, args.dup)
 
       expect(b).to be_instance_of(Watir::Browser)
       expect(b.title).to eq 'Non-control elements'
       b.close
-      $browser = WatirSpec.new_browser
     end
   end
 
   describe '#goto' do
-    not_compliant_on :internet_explorer do
-      it 'adds http:// to URLs with no URL scheme specified' do
-        url = WatirSpec.host[%r{http://(.*)}, 1]
-        expect(url).to_not be_nil
-        browser.goto(url)
-        expect(browser.url).to match(%r{http://#{url}/?})
-      end
+    it 'adds http:// to URLs with no URL scheme specified' do
+      url = WatirSpec.host[%r{http://(.*)}, 1]
+      expect(url).to_not be_nil
+      browser.goto(url)
+      expect(browser.url).to match(%r{http://#{url}/?})
     end
 
     it 'goes to the given url without raising errors' do
@@ -352,21 +341,18 @@ describe 'Browser' do
       expect { browser.goto('about:blank') }.to_not raise_error
     end
 
-    not_compliant_on :internet_explorer do
-      it 'goes to a data URL scheme address without raising errors' do
-        expect { browser.goto('data:text/html;content-type=utf-8,foobar') }.to_not raise_error
-      end
+    it 'goes to a data URL scheme address without raising errors' do
+      expect { browser.goto('data:text/html;content-type=utf-8,foobar') }.to_not raise_error
     end
 
-    compliant_on :chrome do
-      it "goes to internal Chrome URL 'chrome://settings/browser' without raising errors" do
-        expect { browser.goto('chrome://settings/browser') }.to_not raise_error
-      end
+    it "goes to internal Chrome URL 'chrome://settings/browser' without raising errors",
+       exclusive: {browser: %i[chrome edge]} do
+      expect { browser.goto('chrome://settings/browser') }.to_not raise_error
     end
 
     it 'updates the page when location is changed with setTimeout + window.location' do
       browser.goto(WatirSpec.url_for('timeout_window_location.html'))
-      Watir::Wait.while { browser.url.include? 'timeout_window_location.html' }
+      browser.wait_while { |b| b.url.include? 'timeout_window_location.html' }
       expect(browser.url).to include('non_control_elements.html')
     end
   end
@@ -375,10 +361,7 @@ describe 'Browser' do
     it 'refreshes the page' do
       browser.goto(WatirSpec.url_for('non_control_elements.html'))
 
-      compliant_on :headless do
-        browser.div(id: 'best_language').scroll.to
-      end
-
+      browser.div(id: 'best_language').scroll.to
       browser.div(id: 'best_language').click
       expect(browser.div(id: 'best_language').text).to include('Ruby!')
       browser.refresh
@@ -498,7 +481,6 @@ describe 'Browser' do
     browser.close
 
     expect { browser.dl(id: 'experience-list').id }.to raise_error(Watir::Exception::Error, 'browser was closed')
-    $browser = WatirSpec.new_browser
   end
 
   describe '#ready_state' do
@@ -516,7 +498,7 @@ describe 'Browser' do
       browser.close
       @opts = WatirSpec.implementation.browser_args.last
 
-      @opts[:page_load_strategy] = 'none'
+      @opts[:options] = {page_load_strategy: :none}
       browser = WatirSpec.new_browser
 
       start_time = Time.now
@@ -528,8 +510,8 @@ describe 'Browser' do
       expect(browser.ready_state).to eq 'complete'
 
       browser.close
+    ensure
       WatirSpec.implementation = @original.clone
-      $browser = WatirSpec.new_browser
     end
   end
 

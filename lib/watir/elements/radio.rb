@@ -9,8 +9,8 @@ module Watir
     # Selects this radio button.
     #
 
-    def set
-      click unless set?
+    def set(bool = true)
+      click if bool && !set?
     end
     alias select set
 
@@ -33,18 +33,18 @@ module Watir
     #
 
     def text
-      l = label()
+      l = label
       l.exist? ? l.text : ''
     end
   end # Radio
 
   module Container
-    def radio(*args)
-      Radio.new(self, extract_selector(args).merge(tag_name: 'input', type: 'radio'))
+    def radio(opts = {})
+      Radio.new(self, opts.merge(tag_name: 'input', type: 'radio'))
     end
 
-    def radios(*args)
-      RadioCollection.new(self, extract_selector(args).merge(tag_name: 'input', type: 'radio'))
+    def radios(opts = {})
+      RadioCollection.new(self, opts.merge(tag_name: 'input', type: 'radio'))
     end
   end # Container
 

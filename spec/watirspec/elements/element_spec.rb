@@ -2,6 +2,7 @@ require 'watirspec_helper'
 
 describe 'Element' do
   before :each do
+    @c = Selenium::WebDriver::Platform.mac? ? :command : :control
     browser.goto(WatirSpec.url_for('forms_with_input_elements.html'))
   end
 
@@ -20,12 +21,6 @@ describe 'Element' do
       expect { Watir::Element.new(container, 1, 2, 3, 4) }.to raise_error(ArgumentError)
       expect { Watir::Element.new(container, 'foo') }.to raise_error(ArgumentError)
     end
-
-    it 'throws deprecation warning when combining element locator with other locators' do
-      element = double Selenium::WebDriver::Element
-      allow(element).to receive(:enabled?).and_return(true)
-      expect { browser.text_field(class_name: 'name', index: 1, element: element) }.to have_deprecated_element_cache
-    end
   end
 
   describe '#element_call' do
@@ -40,13 +35,11 @@ describe 'Element' do
       expect { element.text }.to_not raise_error
     end
 
-    compliant_on :relaxed_locate do
-      it 'relocates stale element when taking an action on it' do
-        browser.goto(WatirSpec.url_for('forms_with_input_elements.html'))
-        element = browser.text_field(id: 'new_user_first_name').locate
-        browser.refresh
-        expect { element.click }.not_to raise_exception
-      end
+    it 'relocates stale element when taking an action on it' do
+      browser.goto(WatirSpec.url_for('forms_with_input_elements.html'))
+      element = browser.text_field(id: 'new_user_first_name').locate
+      browser.refresh
+      expect { element.click }.not_to raise_exception
     end
   end
 
@@ -109,25 +102,24 @@ describe 'Element' do
       expect(browser.element(visible_text: /Link 2/, class: 'external')).to exist
     end
 
-    bug 'Safari is not filtering out hidden text', :safari do
-      it 'finds elements by visible text in spite of hidden text' do
-        browser.goto WatirSpec.url_for('non_control_elements.html')
+    it 'finds elements by visible text in spite of hidden text',
+       except: {browser: :safari, reason: 'Safari is not filtering out hidden text'} do
+      browser.goto WatirSpec.url_for('non_control_elements.html')
 
-        expect(browser.element(visible_text: 'some visible')).to exist
-        expect(browser.element(visible_text: 'none visible')).not_to exist
-        expect(browser.element(visible_text: /none visible/)).not_to exist
-      end
+      expect(browser.element(visible_text: 'some visible')).to exist
+      expect(browser.element(visible_text: 'none visible')).not_to exist
+      expect(browser.element(visible_text: /none visible/)).not_to exist
     end
 
     it 'raises exception unless value is a String or a RegExp' do
       browser.goto WatirSpec.url_for('non_control_elements.html')
-      msg = /expected one of \[String, Regexp\], got 7\:(Fixnum|Integer)/
+      msg = /expected one of \[String, Regexp\], got 7:Integer/
       expect { browser.element(visible_text: 7).exists? }.to raise_exception(TypeError, msg)
     end
 
     it 'raises exception unless key is valid' do
       browser.goto WatirSpec.url_for('non_control_elements.html')
-      msg = /Unable to build XPath using 7:(Fixnum|Integer)/
+      msg = /Unable to build XPath using 7:Integer/
       expect { browser.element(7 => /foo/).exists? }.to raise_exception(Watir::Exception::Error, msg)
     end
   end
@@ -210,14 +202,13 @@ describe 'Element' do
     end
   end
 
-  bug 'https://github.com/SeleniumHQ/selenium/issues/2555', %i[remote firefox] do
-    bug 'https://github.com/SeleniumHQ/selenium/issues/1795', %i[remote edge] do
-      describe '#focused?' do
-        it 'knows if the element is focused' do
-          expect(browser.element(id: 'new_user_first_name')).to be_focused
-          expect(browser.element(id: 'new_user_last_name')).to_not be_focused
-        end
-      end
+  describe '#focused?',
+           except: {browser: :firefox,
+                    remote: true,
+                    reason: 'https://github.com/SeleniumHQ/selenium/issues/2555'} do
+    it 'knows if the element is focused' do
+      expect(browser.element(id: 'new_user_first_name')).to be_focused
+      expect(browser.element(id: 'new_user_last_name')).to_not be_focused
     end
   end
 
@@ -226,56 +217,6 @@ describe 'Element' do
       expect(browser.div(id: 'onfocus_test').text).to be_empty
       browser.text_field(id: 'new_user_occupation').fire_event('onfocus')
       expect(browser.div(id: 'onfocus_test').text).to eq 'changed by onfocus event'
-    end
-  end
-
-  describe '#visible?' do
-    it 'returns true if the element is visible' do
-      msg = /WARN Watir \[\"visible_element\"\]/
-      expect {
-        expect(browser.text_field(id: 'new_user_email')).to be_visible
-      }.to output(msg).to_stdout_from_any_process
-    end
-
-    it 'raises UnknownObjectException exception if the element does not exist' do
-      msg = /WARN Watir \[\"visible_element\"\]/
-      expect {
-        expect { browser.text_field(id: 'no_such_id').visible? }.to raise_unknown_object_exception
-      }.to output(msg).to_stdout_from_any_process
-    end
-
-    it 'handles staleness' do
-      element = browser.text_field(id: 'new_user_email').locate
-
-      allow(element).to receive(:stale?).and_return(true)
-
-      expect(element).to be_visible
-    end
-
-    it "returns true if the element has style='visibility: visible' even if parent has style='visibility: hidden'" do
-      msg = /WARN Watir \[\"visible_element\"\]/
-      expect {
-        expect(browser.div(id: 'visible_child')).to be_visible
-      }.to output(msg).to_stdout_from_any_process
-    end
-
-    it "returns false if the element is input element where type eq 'hidden'" do
-      expect(browser.hidden(id: 'new_user_interests_dolls')).to_not be_visible
-    end
-
-    it "returns false if the element has style='display: none;'" do
-      msg = /WARN Watir \[\"visible_element\"\]/
-      expect {
-        expect(browser.div(id: 'changed_language')).to_not be_visible
-      }.to output(msg).to_stdout_from_any_process
-    end
-
-    it "returns false if the element has style='visibility: hidden;" do
-      expect { expect(browser.div(id: 'wants_newsletter')).to_not be_visible }
-    end
-
-    it 'returns false if one of the parent elements is hidden' do
-      expect { expect(browser.div(id: 'hidden_parent')).to_not be_visible }
     end
   end
 
@@ -307,12 +248,36 @@ describe 'Element' do
       browser.goto WatirSpec.url_for('removed_element.html')
     end
 
-    it 'handles staleness in a collection' do
+    it 'element from a collection is re-looked up after it becomes stale',
+       except: {browser: :ie, reason: 'throwing NoSuchElement instead'} do
       element = browser.divs(id: 'text').first.locate
 
-      allow(element).to receive(:stale?).and_return(true)
+      browser.refresh
 
+      expect(element).to be_stale
       expect(element).to exist
+    end
+
+    it 'element from a selenium element throws an exception when relocated',
+       except: {browser: :ie, reason: 'throwing NoSuchElement instead'} do
+      div = browser.div.locate
+      element = browser.element(element: div.wd)
+
+      browser.refresh
+      expect(element).to be_stale
+
+      msg = 'Can not relocate a Watir element initialized by a Selenium element'
+      expect { element.exists? }.to raise_exception(Watir::Exception::LocatorException, msg)
+    end
+
+    it 'element from a selenium element with other locators throws an exception' do
+      div = browser.div.locate
+      element = browser.element(element: div.wd, id: 'foo')
+
+      browser.refresh
+
+      msg = 'Can not relocate a Watir element initialized by a Selenium element'
+      expect { element.exists? }.to raise_exception(Watir::Exception::LocatorException, msg)
     end
 
     it 'returns false when tag name does not match id' do
@@ -371,6 +336,16 @@ describe 'Element' do
 
       browser.refresh
 
+      expect(element).to be_stale
+    end
+
+    it 'returns true the second time if the element is stale',
+       except: {browser: :ie, reason: 'throwing NoSuchElement instead'} do
+      element = browser.div.locate
+
+      browser.refresh
+
+      expect(element).to be_stale
       expect(element).to be_stale
     end
 
@@ -489,7 +464,6 @@ describe 'Element' do
 
   describe '#send_keys' do
     before(:each) do
-      @c = Selenium::WebDriver::Platform.mac? ? :command : :control
       browser.goto(WatirSpec.url_for('keylogger.html'))
     end
 
@@ -508,45 +482,122 @@ describe 'Element' do
       expect(events).to eq 10
     end
 
-    bug 'http://code.google.com/p/chromium/issues/detail?id=93879', %i[chrome macosx] do
-      bug 'special keys are not working correctly', :safari, :firefox do
-        it 'performs key combinations' do
-          receiver.send_keys 'foo'
-          receiver.send_keys [@c, 'a']
-          receiver.send_keys :backspace
-          expect(receiver.value).to be_empty
-          expect(events).to eq 6
-        end
+    context 'with key combinations',
+            except: [{browser: :firefox, reason: 'https://github.com/mozilla/geckodriver/issues/245'},
+                     {browser: :safari}] do
+      it 'performs from array' do
+        receiver.send_keys 'foo'
+        receiver.send_keys [@c, 'a']
+        receiver.send_keys :backspace
+        expect(receiver.value).to be_empty
+        expect(events).to eq 6
+      end
 
-        it 'performs arbitrary list of key combinations' do
-          receiver.send_keys 'foo'
-          receiver.send_keys [@c, 'a'], [@c, 'x']
-          expect(receiver.value).to be_empty
-          expect(events).to eq 7
-        end
+      it 'performs from multiple arrays' do
+        receiver.send_keys 'foo'
+        receiver.send_keys [@c, 'a'], [@c, 'x']
+        expect(receiver.value).to be_empty
+        expect(events).to eq 7
+      end
 
-        it 'supports combination of strings and arrays' do
-          receiver.send_keys 'foo', [@c, 'a'], :backspace
-          expect(receiver.value).to be_empty
-          expect(events).to eq 6
-        end
+      it 'supports combination of strings and arrays' do
+        receiver.send_keys 'foo', [@c, 'a'], :backspace
+        expect(receiver.value).to be_empty
+        expect(events).to eq 6
       end
     end
   end
 
   describe '#click' do
-    bug 'Element has been located but Safari does not recognize it', :safari do
-      bug 'https://bugs.chromium.org/p/chromedriver/issues/detail?id=2732', :w3c do
-        it 'accepts modifiers' do
-          begin
-            browser.a.click(:shift)
-            browser.wait_until { |b| b.windows.size > 1 }
-            expect(browser.windows.size).to eq 2
-          ensure
-            browser.windows.reject(&:current?).each(&:close)
-          end
-        end
-      end
+    it 'accepts modifiers', except: {browser: :ie} do
+      browser.a.click(@c)
+      expect { browser.windows.wait_until(size: 2) }.to_not raise_exception
+    ensure
+      browser.windows.restore!
+    end
+  end
+
+  describe '#set' do
+    it 'clicks an element by default that does not define #set' do
+      browser.goto(WatirSpec.url_for('non_control_elements.html'))
+      browser.element(id: 'best_language').set
+      expect(browser.div(id: 'best_language').text).to eq 'Ruby!'
+    end
+
+    it 'clicks an element that does not define #set with provided modifiers', except: {browser: :ie} do
+      browser.a.set(@c)
+      browser.wait_until { |b| b.windows.size > 1 }
+      expect(browser.windows.size).to eq 2
+    ensure
+      browser.windows.restore!
+    end
+
+    it 'does not click an element that does not define #set when passed false' do
+      browser.goto(WatirSpec.url_for('non_control_elements.html'))
+      browser.element(id: 'best_language').set(false)
+      expect(browser.div(id: 'best_language').text).not_to eq 'Ruby!'
+    end
+
+    it 'clicks a Button' do
+      browser.goto(WatirSpec.url_for('forms_with_input_elements.html'))
+      browser.button(id: 'delete_user_submit').set
+      browser.wait_until { |b| !b.url.include? 'forms_with_input_elements.html' }
+      expect(browser.text).to include('Semantic table')
+    end
+
+    it 'sends keys to text element' do
+      browser.goto(WatirSpec.url_for('forms_with_input_elements.html'))
+      browser.element(id: 'new_user_email').set('Bye Cruel World')
+      expect(browser.text_field(id: 'new_user_email').value).to eq 'Bye Cruel World'
+    end
+
+    it 'sends keys to text area' do
+      browser.goto(WatirSpec.url_for('forms_with_input_elements.html'))
+      browser.element(id: 'delete_user_comment').set('Hello Cruel World')
+      expect(browser.textarea(id: 'delete_user_comment').value).to eq 'Hello Cruel World'
+    end
+
+    it 'checks a checkbox' do
+      browser.goto(WatirSpec.url_for('forms_with_input_elements.html'))
+      browser.element(id: 'new_user_interests_cars').set
+      expect(browser.checkbox(id: 'new_user_interests_cars')).to be_set
+    end
+
+    it 'unchecks a checkbox' do
+      browser.goto(WatirSpec.url_for('forms_with_input_elements.html'))
+      browser.element(id: 'new_user_interests_books').set(false)
+      expect(browser.checkbox(id: 'new_user_interests_books')).to_not be_set
+    end
+
+    it 'clicks a Radio' do
+      browser.goto(WatirSpec.url_for('forms_with_input_elements.html'))
+      browser.radio(id: 'new_user_newsletter_no').set
+      expect(browser.radio(id: 'new_user_newsletter_no')).to be_set
+      expect(messages.size).to eq 1
+    end
+
+    it 'does not click a Radio when false or already clicked' do
+      browser.goto(WatirSpec.url_for('forms_with_input_elements.html'))
+      browser.element(id: 'new_user_newsletter_no').set(false)
+      browser.element(id: 'new_user_newsletter_yes').set(true)
+      expect(messages.size).to eq 0
+    end
+
+    it 'uploads a file' do
+      browser.element(name: 'new_user_portrait').set __FILE__
+
+      expect(browser.file_field(name: 'new_user_portrait').value).to include(File.basename(__FILE__))
+    end
+
+    it 'selects an option' do
+      browser.select_list(name: 'new_user_languages').clear
+      browser.element(name: 'new_user_languages').set('2')
+      expect(browser.select_list(name: 'new_user_languages').selected_options.map(&:text)).to eq %w[EN]
+    end
+
+    it 'sends keys to content editable element' do
+      browser.element(id: 'contenteditable').set('Bar')
+      expect(browser.div(id: 'contenteditable').text).to eq 'Bar'
     end
   end
 
@@ -572,17 +623,65 @@ describe 'Element' do
   end
 
   describe '#hover' do
-    not_compliant_on :internet_explorer do
-      it 'should hover over the element' do
-        browser.goto WatirSpec.url_for('hover.html')
-        link = browser.a
-
-        expect(link.style('font-size')).to eq '10px'
-        link.scroll.to
-        link.hover
-        link.wait_until { |l| l.style('font-size') == '20px' }
-        expect(link.style('font-size')).to eq '20px'
+    def element_color(element)
+      case element.style('color')
+      when 'rgba(0, 0, 255, 1)'
+        :blue
+      when 'rgba(255, 165, 0, 1)', 'rgb(255, 165, 0)'
+        :orange
+      else
+        raise rgba
       end
+    end
+
+    it 'allows scrolling to top', except: {browser: :ie,
+                                           reason: 'needs require_window_focus'} do
+      browser.goto(WatirSpec.url_for('scroll.html'))
+      element = browser.div(id: 'center')
+
+      element.hover(scroll_to: :top)
+      expect(element_color(element)).to eq :orange
+
+      element_top = browser.execute_script('return arguments[0].getBoundingClientRect().top', element)
+      expect(element_top).to be_within(1).of(0)
+    end
+
+    it 'scrolls to center by default', except: {browser: :ie,
+                                                reason: 'needs require_window_focus'} do
+      browser.goto(WatirSpec.url_for('scroll.html'))
+      element = browser.div(id: 'center')
+
+      element.hover
+      expect(element_color(element)).to eq :orange
+
+      element_rect = browser.execute_script('return arguments[0].getBoundingClientRect()', element)
+
+      expect(element_rect['top']).to eq(element_rect['bottom'] - element_rect['height'])
+    end
+
+    it 'allows scrolling to bottom', except: {browser: :ie,
+                                              reason: 'needs require_window_focus'} do
+      browser.goto(WatirSpec.url_for('scroll.html'))
+      element = browser.div(id: 'center')
+
+      element.hover(scroll_to: :bottom)
+      expect(element_color(element)).to eq :orange
+
+      element_bottom = browser.execute_script('return arguments[0].getBoundingClientRect().bottom', element)
+      window_height = browser.execute_script('return window.innerHeight')
+
+      expect(element_bottom).to be_within(1).of(window_height)
+    end
+
+    it 'allows not scrolling', except: {browser: %i[chrome edge],
+                                        reason: 'https://bugs.chromium.org/p/chromedriver/issues/detail?id=3955'} do
+      browser.goto(WatirSpec.url_for('scroll.html'))
+      element = browser.div(id: 'center')
+
+      browser.execute_script('return window.pageYOffset;')
+      browser.execute_script('return window.innerHeight;')
+
+      expect { element.hover(scroll_to: nil) }.to raise_exception Selenium::WebDriver::Error::MoveTargetOutOfBoundsError
     end
   end
 
@@ -645,7 +744,8 @@ describe 'Element' do
   end
 
   describe '#inner_text' do
-    it 'returns inner HTML code of element' do
+    it 'returns inner HTML code of element',
+       except: {browser: :ie, reason: 'also returning explicitly hidden results'} do
       browser.goto WatirSpec.url_for('non_control_elements.html')
       div = browser.div(id: 'shown')
       expect(div.inner_text).to eq('Not hidden')
@@ -671,25 +771,12 @@ describe 'Element' do
   end
 
   describe '#select_text and #selected_text' do
-    it 'selects text and returns selected text' do
+    it 'selects text and returns selected text',
+       except: {browser: :ie, reason: 'Select Text atom appears broken in IE 11'} do
       browser.goto WatirSpec.url_for('non_control_elements.html')
       element = browser.element(visible_text: 'all visible')
       element.select_text('all visible')
       expect(element.selected_text).to eq 'all visible'
-    end
-  end
-
-  describe '#scroll_into_view' do
-    it 'scrolls element into view' do
-      el = browser.button(name: 'new_user_image')
-      element_center = el.center['y']
-
-      bottom_viewport_script = 'return window.pageYOffset + window.innerHeight'
-      expect(browser.execute_script(bottom_viewport_script)).to be < element_center
-
-      expect(el.scroll_into_view).to be_a Selenium::WebDriver::Point
-
-      expect(browser.execute_script(bottom_viewport_script)).to be > element_center
     end
   end
 
@@ -706,10 +793,13 @@ describe 'Element' do
   describe '#size' do
     it 'returns size of element' do
       size = browser.button(name: 'new_user_image').size
-
       expect(size).to be_a Selenium::WebDriver::Dimension
-      expect(size['width']).to eq 104.0
-      expect(size['height']).to eq 70.0
+
+      expected_width = browser.name == :safari ? 105 : 104
+      expected_height = browser.name == :safari ? 71 : 70
+
+      expect(size['width']).to eq expected_width
+      expect(size['height']).to eq expected_height
     end
   end
 
@@ -717,7 +807,8 @@ describe 'Element' do
     it 'returns height of element' do
       height = browser.button(name: 'new_user_image').height
 
-      expect(height).to eq 70.0
+      expected_height = browser.name == :safari ? 71 : 70
+      expect(height).to eq expected_height
     end
   end
 
@@ -725,7 +816,8 @@ describe 'Element' do
     it 'returns width of element' do
       width = browser.button(name: 'new_user_image').width
 
-      expect(width).to eq 104.0
+      expected_width = browser.name == :safari ? 105 : 104
+      expect(width).to eq expected_width
     end
   end
 
@@ -817,27 +909,21 @@ describe 'Element' do
     end
   end
 
-  describe 'Float Attribute' do
-    it 'returns Float value of applicable element' do
+  describe 'Numeric Attribute' do
+    it 'returns Float value',
+       except: {browser: :ie, reason: 'not recognizing the value of the element'} do
       element = browser.text_field(id: 'number')
       expect(element.valueasnumber).to be_a Float
     end
 
-    it 'returns nil value for an inapplicable Element' do
+    it 'returns nil for unspecified value' do
       element = browser.input
       expect(element.valueasnumber).to be_nil
     end
-  end
 
-  describe 'Integer Attribute' do
-    it 'returns Float value of applicable element' do
+    it 'returns Integer value' do
       element = browser.form
       expect(element.length).to be_a Integer
-    end
-
-    it 'returns -1 for an inapplicable Element' do
-      element = browser.input
-      expect(element.maxlength).to eq(-1)
     end
   end
 
@@ -878,56 +964,69 @@ describe 'Element' do
 
     it 'returns false if element center is not covered' do
       btn = browser.button(id: 'not_obscured')
-      expect(btn).not_to be_obscured
+      btn.scroll.to :center
       expect { btn.click }.not_to raise_exception
+      expect(btn).not_to be_obscured
     end
 
     it 'returns false if element center is covered by its descendant' do
       btn = browser.button(id: 'has_descendant')
-      expect(btn).not_to be_obscured
+      btn.scroll.to :center
       expect { btn.click }.not_to raise_exception
+      expect(btn).not_to be_obscured
     end
 
-    it 'returns true if element center is covered by a non-descendant' do
+    it 'returns true if element center is covered by a non-descendant',
+       except: {browser: :safari, reason: 'not getting element click intercepted'} do
       btn = browser.button(id: 'obscured')
+      btn.scroll.to :center
+      expect { btn.click }.to raise_exception(Selenium::WebDriver::Error::ElementClickInterceptedError)
       expect(btn).to be_obscured
-      not_compliant_on :chrome, :safari do
-        expect { btn.click }.to raise_exception(Selenium::WebDriver::Error::ElementClickInterceptedError)
-      end
-      compliant_on :chrome do
-        expect { btn.click }.to raise_exception(Selenium::WebDriver::Error::ElementClickInterceptedError)
-      end
-      compliant_on :safari do
-        expect { btn.click }.to raise_exception(Selenium::WebDriver::Error::WebDriverError)
-      end
     end
 
-    not_compliant_on %i[firefox appveyor] do
-      it 'returns false if element center is surrounded by non-descendants' do
-        btn = browser.button(id: 'surrounded')
-        expect(btn).not_to be_obscured
-        expect { btn.click }.not_to raise_exception
-      end
-    end
-
-    it 'scrolls interactive element into view before checking if obscured' do
-      btn = browser.button(id: 'requires_scrolling')
-      expect(btn).not_to be_obscured
+    it 'returns false if element center is surrounded by non-descendants' do
+      btn = browser.button(id: 'surrounded')
+      btn.scroll.to :center
       expect { btn.click }.not_to raise_exception
+      expect(btn).not_to be_obscured
+    end
+
+    it 'correctly scrolls element below viewport' do
+      browser.goto WatirSpec.url_for('sticky_elements.html')
+
+      element = browser.div(id: 'center')
+
+      browser.scroll.to :top
+      expect { element.click }.not_to raise_exception
+
+      browser.scroll.to :top
+      expect(element).not_to be_obscured
+    end
+
+    it 'correctly scrolls element above viewport',
+       except: {browser: %i[chrome edge],
+                reason: 'https://bugs.chromium.org/p/chromedriver/issues/detail?id=3954'} do
+      browser.goto WatirSpec.url_for('sticky_elements.html')
+      element = browser.div(id: 'center')
+
+      browser.scroll.to :bottom
+      expect { element.click }.not_to raise_exception
+
+      browser.scroll.to :bottom
+      expect(element).not_to be_obscured
     end
 
     it 'scrolls non-interactive element into view before checking if obscured' do
       div = browser.div(id: 'requires_scrolling_container')
-      expect(div).not_to be_obscured
       expect { div.click }.not_to raise_exception
+      browser.scroll.to :top
+      expect(div).not_to be_obscured
     end
 
-    bug 'Safari is throwing click intercepted here', :safari do
-      it 'returns true if element cannot be scrolled into view' do
-        btn = browser.button(id: 'off_screen')
-        expect(btn).to be_obscured
-        expect { btn.click }.to raise_unknown_object_exception
-      end
+    it 'returns true if element cannot be scrolled into view' do
+      btn = browser.button(id: 'off_screen')
+      expect(btn).to be_obscured
+      expect { btn.click }.to raise_unknown_object_exception
     end
 
     it 'returns true if element is hidden' do

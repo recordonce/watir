@@ -51,7 +51,7 @@ describe Watir::Locators::Element::SelectorBuilder do
 
       it 'raises exception when not a String' do
         selector = {xpath: 7}
-        msg = /expected one of \[String\], got 7:(Fixnum|Integer)/
+        msg = /expected one of \[String\], got 7:Integer/
 
         expect { selector_builder.build(selector) }.to raise_exception TypeError, msg
       end
@@ -81,7 +81,7 @@ describe Watir::Locators::Element::SelectorBuilder do
 
       it 'raises exception when not a String or Regexp' do
         selector = {tag_name: 7}
-        msg = /expected one of \[String, Regexp, Symbol\], got 7:(Fixnum|Integer)/
+        msg = /expected one of \[String, Regexp, Symbol\], got 7:Integer/
 
         expect { selector_builder.build(selector) }.to raise_exception TypeError, msg
       end
@@ -93,15 +93,6 @@ describe Watir::Locators::Element::SelectorBuilder do
         built = {xpath: ".//*[contains(concat(' ', @class, ' '), ' user ')]"}
 
         expect(selector_builder.build(selector)).to eq built
-      end
-
-      it 'values with spaces' do
-        selector = {class_name: 'multiple classes here'}
-        built = {xpath: ".//*[contains(concat(' ', @class, ' '), ' multiple classes here ')]"}
-
-        expect {
-          expect(selector_builder.build(selector)).to eq built
-        }.to have_deprecated_class_array
       end
 
       it 'single String concatenates' do
@@ -186,14 +177,14 @@ describe Watir::Locators::Element::SelectorBuilder do
 
       it 'raises exception when not a String or Regexp or Array' do
         selector = {class: 7}
-        msg = /expected one of \[String, Regexp, TrueClass, FalseClass\], got 7:(Fixnum|Integer)/
+        msg = /expected one of \[String, Regexp, TrueClass, FalseClass\], got 7:Integer/
 
         expect { selector_builder.build(selector) }.to raise_exception TypeError, msg
       end
 
       it 'raises exception when Array values are not a String or Regexp' do
         selector = {class: [7]}
-        msg = /expected one of \[String, Regexp, TrueClass, FalseClass\], got 7:(Fixnum|Integer)/
+        msg = /expected one of \[String, Regexp, TrueClass, FalseClass\], got 7:Integer/
 
         expect { selector_builder.build(selector) }.to raise_exception TypeError, msg
       end
@@ -244,14 +235,14 @@ describe Watir::Locators::Element::SelectorBuilder do
 
       it 'raises exception when attribute value is not a Boolean, String or Regexp' do
         selector = {foo: 7}
-        msg = /expected one of \[String, Regexp, TrueClass, FalseClass\], got 7:(Fixnum|Integer)/
+        msg = /expected one of \[String, Regexp, TrueClass, FalseClass\], got 7:Integer/
 
         expect { selector_builder.build(selector) }.to raise_exception TypeError, msg
       end
 
       it 'raises exception when attribute key is not a String or Regexp' do
         selector = {7 => 'foo'}
-        msg = /Unable to build XPath using 7:(Fixnum|Integer)/
+        msg = /Unable to build XPath using 7:Integer/
 
         expect { selector_builder.build(selector) }.to raise_exception Watir::Exception::LocatorException, msg
       end
@@ -281,18 +272,16 @@ describe Watir::Locators::Element::SelectorBuilder do
         expect(selector_builder.build(selector)).to eq built
       end
 
-      it 'with caption attribute' do
-        selector = {caption: 'Add user'}
-        built = {xpath: ".//*[normalize-space()='Add user']"}
+      it 'Regexp uses contains normalize space' do
+        selector = {text: /Add/}
+        built = {xpath: ".//*[contains(normalize-space(), 'Add')]"}
 
-        expect {
-          expect(selector_builder.build(selector)).to eq built
-        }.to have_deprecated_caption
+        expect(selector_builder.build(selector)).to eq built
       end
 
       it 'raises exception when text is not a String or Regexp' do
         selector = {text: 7}
-        msg = /expected one of \[String, Regexp\], got 7:(Fixnum|Integer)/
+        msg = /expected one of \[String, Regexp\], got 7:Integer/
 
         expect { selector_builder.build(selector) }.to raise_exception TypeError, msg
       end
@@ -346,7 +335,8 @@ describe Watir::Locators::Element::SelectorBuilder do
 
       it 'returns a label_element if complex' do
         selector = {label: /Ca|rs/}
-        built = {xpath: './/*', label_element: /Ca|rs/}
+        xpath = './/*[@id=//label[normalize-space()]/@for or parent::label[normalize-space()]]'
+        built = {xpath: xpath, label_element: /Ca|rs/}
 
         expect(selector_builder.build(selector)).to eq built
       end
@@ -574,7 +564,10 @@ describe Watir::Locators::Element::SelectorBuilder do
         selector = {action: /ME/i}
         built = {xpath: './/*[contains(translate(@action,' \
 "'ABCDEFGHIJKLMNOPQRSTUVWXYZÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞŸŽŠŒ'," \
-"'abcdefghijklmnopqrstuvwxyzàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿžšœ'), 'me')]"}
+"'abcdefghijklmnopqrstuvwxyzàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿžšœ'), " \
+"translate('me'," \
+"'ABCDEFGHIJKLMNOPQRSTUVWXYZÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞŸŽŠŒ'," \
+"'abcdefghijklmnopqrstuvwxyzàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿžšœ'))]"}
 
         expect(selector_builder.build(selector)).to eq built
       end
@@ -625,13 +618,6 @@ describe Watir::Locators::Element::SelectorBuilder do
         expect(selector_builder.build(selector)).to eq built
       end
 
-      it 'text with any Regexp' do
-        selector = {text: /Add/}
-        built = {xpath: './/*', text: /Add/}
-
-        expect(selector_builder.build(selector)).to eq built
-      end
-
       it 'visible' do
         selector = {tag_name: 'div', visible: true}
         built = {xpath: ".//*[local-name()='div']", visible: true}
@@ -662,7 +648,7 @@ describe Watir::Locators::Element::SelectorBuilder do
 
       it 'raises exception when visible text is not a String or Regexp' do
         selector = {visible_text: 7}
-        msg = /expected one of \[String, Regexp\], got 7:(Fixnum|Integer)/
+        msg = /expected one of \[String, Regexp\], got 7:Integer/
 
         expect { selector_builder.build(selector) }.to raise_exception TypeError, msg
       end
@@ -760,6 +746,52 @@ describe Watir::Locators::Element::SelectorBuilder do
         build_selector = selector_builder.build(selector)
         expect(build_selector.delete(:scope)).to_not be_nil
         expect(build_selector).to eq built
+      end
+    end
+
+    context 'with case-insensitive attributes' do
+      it 'respects case when locating uknown element with uknown attribute' do
+        expect(selector_builder.build(hreflang: 'en')).to eq(xpath: ".//*[@hreflang='en']")
+        expect(selector_builder.build(hreflang: /en/)).to eq(xpath: ".//*[contains(@hreflang, 'en')]")
+      end
+
+      it 'ignores case when locating uknown element with defined attribute' do
+        lhs = 'translate(@lang,' \
+  "'ABCDEFGHIJKLMNOPQRSTUVWXYZÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞŸŽŠŒ'," \
+  "'abcdefghijklmnopqrstuvwxyzàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿžšœ')"
+        rhs = "translate('en'," \
+  "'ABCDEFGHIJKLMNOPQRSTUVWXYZÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞŸŽŠŒ'," \
+  "'abcdefghijklmnopqrstuvwxyzàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿžšœ')"
+        expect(selector_builder.build(lang: 'en')).to eq(xpath: ".//*[#{lhs}=#{rhs}]")
+        expect(selector_builder.build(lang: /en/)).to eq(xpath: ".//*[contains(#{lhs}, #{rhs})]")
+        expect(selector_builder.build(tag_name: /a/, lang: 'en'))
+          .to eq(xpath: ".//*[contains(local-name(), 'a')][#{lhs}=#{rhs}]")
+        expect(selector_builder.build(tag_name: /a/, lang: /en/))
+          .to eq(xpath: ".//*[contains(local-name(), 'a')][contains(#{lhs}, #{rhs})]")
+      end
+
+      it 'ignores case when attribute is defined for element' do
+        lhs = 'translate(@hreflang,' \
+  "'ABCDEFGHIJKLMNOPQRSTUVWXYZÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞŸŽŠŒ'," \
+  "'abcdefghijklmnopqrstuvwxyzàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿžšœ')"
+        rhs = "translate('en'," \
+  "'ABCDEFGHIJKLMNOPQRSTUVWXYZÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞŸŽŠŒ'," \
+  "'abcdefghijklmnopqrstuvwxyzàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿžšœ')"
+        expect(selector_builder.build(tag_name: 'a', hreflang: 'en'))
+          .to eq(xpath: ".//*[local-name()='a'][#{lhs}=#{rhs}]")
+        expect(selector_builder.build(tag_name: 'a', hreflang: /en/))
+          .to eq(xpath: ".//*[local-name()='a'][contains(#{lhs}, #{rhs})]")
+      end
+
+      it 'respects case when attribute is not defined for element' do
+        expect(selector_builder.build(tag_name: 'table', hreflang: 'en'))
+          .to eq(xpath: ".//*[local-name()='table'][@hreflang='en']")
+        expect(selector_builder.build(tag_name: 'table', hreflang: /en/))
+          .to eq(xpath: ".//*[local-name()='table'][contains(@hreflang, 'en')]")
+        expect(selector_builder.build(tag_name: /a/, hreflang: 'en'))
+          .to eq(xpath: ".//*[contains(local-name(), 'a')][@hreflang='en']")
+        expect(selector_builder.build(tag_name: /a/, hreflang: /en/))
+          .to eq(xpath: ".//*[contains(local-name(), 'a')][contains(@hreflang, 'en')]")
       end
     end
   end

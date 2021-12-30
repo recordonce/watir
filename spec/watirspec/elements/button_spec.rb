@@ -14,9 +14,7 @@ describe 'Button' do
       expect(browser.button(name: /new_user_reset/)).to exist
       expect(browser.button(value: 'Button')).to exist
       expect(browser.button(value: /Button/)).to exist
-      not_compliant_on :internet_explorer do
-        expect(browser.button(src: 'images/button.png')).to exist
-      end
+      expect(browser.button(src: 'images/button.png')).to exist
       expect(browser.button(src: /button\.png/)).to exist
       expect(browser.button(text: 'Button 2')).to exist
       expect(browser.button(text: /Button 2/)).to exist
@@ -37,16 +35,8 @@ describe 'Button' do
       expect(browser.button(text: /Button 2/)).to exist
       expect(browser.button(value: 'Button 2')).to exist
       expect(browser.button(value: /Button 2/)).to exist
-    end
-
-    it 'returns true if the button exists (how = :caption)' do
-      expect {
-        expect(browser.button(caption: 'Button 2')).to exist
-      }.to have_deprecated_caption
-
-      expect {
-        expect(browser.button(caption: /Button 2/)).to exist
-      }.to have_deprecated_caption
+      expect(browser.button(value: 'Button 4 With Child Text')).to exist
+      expect(browser.button(value: /Button 4 With Child Text/)).to exist
     end
 
     it 'returns the first button if given no args' do
@@ -135,10 +125,8 @@ describe 'Button' do
   end
 
   describe '#style' do
-    not_compliant_on :internet_explorer do
-      it 'returns the style attribute if the button exists' do
-        expect(browser.button(id: 'delete_user_submit').style).to eq 'border: 4px solid red;'
-      end
+    it 'returns the style attribute if the button exists' do
+      expect(browser.button(id: 'delete_user_submit').style).to include 'border: 4px solid red;'
     end
 
     it "returns an empty string if the element exists and the attribute doesn't exist" do
@@ -252,7 +240,7 @@ describe 'Button' do
     it 'clicks the button if it exists' do
       browser.goto(WatirSpec.url_for('forms_with_input_elements.html'))
       browser.button(id: 'delete_user_submit').click
-      Watir::Wait.until { !browser.url.include? 'forms_with_input_elements.html' }
+      browser.wait_while(url: /forms_with_input_elements\.html$/)
       expect(browser.text).to include('Semantic table')
     end
 

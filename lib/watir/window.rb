@@ -1,12 +1,11 @@
 module Watir
   class Window
-    include EventuallyPresent
     include Waitable
     include Exception
 
     attr_reader :browser
 
-    def initialize(browser, selector)
+    def initialize(browser, selector = {})
       @browser = browser
       @driver = browser.driver
       @selector = selector
@@ -16,7 +15,7 @@ module Watir
       elsif selector.key? :handle
         @handle = selector.delete :handle
       else
-        return if selector.keys.all? { |k| %i[title url index].include? k }
+        return if selector.keys.all? { |k| %i[title url element].include? k }
 
         raise ArgumentError, "invalid window selector: #{selector_string}"
       end
@@ -94,6 +93,28 @@ module Watir
     end
 
     #
+    # Minimize window.
+    #
+    # @example
+    #   browser.window.minimize
+    #
+
+    def minimize
+      use { @driver.manage.window.minimize }
+    end
+
+    #
+    # Make window full screen.
+    #
+    # @example
+    #   browser.window.full_screen
+    #
+
+    def full_screen
+      use { @driver.manage.window.full_screen }
+    end
+
+    #
     # Returns true if window exists.
     #
     # @return [Boolean]
@@ -113,7 +134,7 @@ module Watir
     # Returns true if two windows are equal.
     #
     # @example
-    #   browser.window(index: 0) == browser.window(index: 1)
+    #   browser.window(title: /window_switching/) == browser.window(/closeable/)
     #   #=> false
     #
     # @param [Window] other
@@ -180,17 +201,26 @@ module Watir
     #   end
     #
 
-    def use(&blk)
-      @browser.original_window ||= current_window
+    def use
       wait_for_exists
-      @driver.switch_to.window(handle, &blk)
+      cache_current = current_window
+      @browser.original_window ||= cache_current
+      restore_to = unless cache_current == handle
+                     @driver.switch_to.window(handle)
+                     cache_current
+                   end
+      if block_given?
+        begin
+          yield
+        ensure
+          @driver.switch_to.window(restore_to) if restore_to
+        end
+      end
       self
     end
 
     #
     # @api private
-    #
-    # Referenced in EventuallyPresent
     #
 
     def selector_string
@@ -204,17 +234,11 @@ module Watir
     private
 
     def locate
-      if @selector.empty?
-        nil
-      elsif @selector.key?(:index)
-        @driver.window_handles[Integer(@selector[:index])]
-      else
-        @driver.window_handles.find { |wh| matches?(wh) }
-      end
+      @selector.empty? ? nil : @driver.window_handles.find { |wh| matches?(wh) }
     end
 
     def assert_exists
-      return if @driver.window_handles.include?(handle)
+      return if !handle.nil? && @driver.window_handles.include?(handle)
 
       raise(NoMatchingWindowFoundException, selector_string)
     end
@@ -226,28 +250,23 @@ module Watir
       nil
     end
 
-    # rubocop:disable Lint/ShadowedException
     def matches?(handle)
       @driver.switch_to.window(handle) do
         matches_title = @selector[:title].nil? || @browser.title =~ /#{@selector[:title]}/
         matches_url = @selector[:url].nil? || @browser.url =~ /#{@selector[:url]}/
+        matches_element = @selector[:element].nil? || @selector[:element].exists?
 
-        matches_title && matches_url
+        matches_title && matches_url && matches_element
       end
     rescue Selenium::WebDriver::Error::NoSuchWindowError
       # the window may disappear while we're iterating.
       false
     end
-    # rubocop:enable Lint/ShadowedException
 
     def wait_for_exists
-      return assert_exists unless Watir.relaxed_locate?
-
-      begin
-        wait_until(&:exists?)
-      rescue Wait::TimeoutError
-        raise NoMatchingWindowFoundException, selector_string
-      end
+      wait_until(&:exists?)
+    rescue Wait::TimeoutError
+      raise NoMatchingWindowFoundException, selector_string
     end
   end # Window
 end # Watir

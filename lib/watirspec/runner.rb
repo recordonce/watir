@@ -33,7 +33,7 @@ module WatirSpec
     end
 
     def execute_if_necessary
-      execute if !@executed && @execute
+      execute if (!defined?(@executed) || !@executed) && @execute
     end
 
     def configure
@@ -45,7 +45,7 @@ module WatirSpec
         config.include(MessagesHelper)
 
         config.before(:suite) { $browser = WatirSpec.new_browser }
-        config.after(:suite) { $browser.close }
+        config.after(:suite) { $browser&.close }
       end
     end
 

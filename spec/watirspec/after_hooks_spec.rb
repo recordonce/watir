@@ -50,6 +50,8 @@ describe 'Browser::AfterHooks' do
   end
 
   describe '#run' do
+    before { @yield = nil }
+
     after(:each) do
       browser.original_window.use
       browser.after_hooks.delete @page_after_hook
@@ -83,14 +85,12 @@ describe 'Browser::AfterHooks' do
       expect(@yield).to be true
     end
 
-    bug 'https://gist.github.com/titusfortner/bd32f27ec2458b3a733d83374d156940', :safari do
-      it 'runs after_hooks after Element#submit' do
-        browser.goto(WatirSpec.url_for('forms_with_input_elements.html'))
-        @page_after_hook = proc { @yield = browser.div(id: 'messages').text == 'submit' }
-        browser.after_hooks.add @page_after_hook
-        browser.form(id: 'new_user').submit
-        expect(@yield).to be true
-      end
+    it 'runs after_hooks after Element#submit' do
+      browser.goto(WatirSpec.url_for('forms_with_input_elements.html'))
+      @page_after_hook = proc { @yield = browser.div(id: 'messages').text == 'submit' }
+      browser.after_hooks.add @page_after_hook
+      browser.form(id: 'new_user').submit
+      expect(@yield).to be true
     end
 
     it 'runs after_hooks after Element#double_click' do
@@ -98,7 +98,6 @@ describe 'Browser::AfterHooks' do
       @page_after_hook = proc { @yield = browser.title == 'Non-control elements' }
       browser.after_hooks.add @page_after_hook
       div = browser.div(id: 'html_test')
-      div.scroll.to
       div.double_click
       expect(@yield).to be true
     end
@@ -108,30 +107,7 @@ describe 'Browser::AfterHooks' do
       @page_after_hook = proc { @yield = browser.title == 'Right Click Test' }
       browser.after_hooks.add @page_after_hook
       div = browser.div(id: 'click')
-      div.scroll.to
       div.right_click
-      expect(@yield).to be true
-    end
-
-    it 'runs after_hooks after FramedDriver#switch!' do
-      browser.goto(WatirSpec.url_for('iframes.html'))
-      @page_after_hook = proc { @yield = browser.title == 'Iframes' }
-      browser.after_hooks.add @page_after_hook
-
-      browser.iframe.element(css: '#senderElement').exists?
-
-      expect(@yield).to be true
-    end
-
-    it 'runs after_hooks after Browser#ensure_context if not @default_context' do
-      browser.goto(WatirSpec.url_for('iframes.html'))
-      browser.iframe.element(css: '#senderElement').locate
-
-      @page_after_hook = proc { @yield = browser.title == 'Iframes' }
-      browser.after_hooks.add @page_after_hook
-
-      browser.locate
-
       expect(@yield).to be true
     end
 
@@ -185,19 +161,22 @@ describe 'Browser::AfterHooks' do
       browser.alert.ok
     end
 
-    bug 'Clicking an Element that Closes a Window is returning NoMatchingWindowFoundException', :safari do
-      it 'does not raise error when running error checks on closed window' do
-        url = WatirSpec.url_for('window_switching.html')
-        @page_after_hook = proc { browser.url }
-        browser.after_hooks.add @page_after_hook
-        browser.goto url
-        browser.a(id: 'open').click
+    it 'does not raise error when running error checks on closed window',
+       except: {browser: :safari,
+                reason: 'Clicking an Element that Closes a Window is returning NoMatchingWindowFoundException'},
+       exclude: {browser: :firefox,
+                 platform: :windows,
+                 reason: 'https://github.com/mozilla/geckodriver/issues/1847'} do
+      url = WatirSpec.url_for('window_switching.html')
+      @page_after_hook = proc { browser.url }
+      browser.after_hooks.add @page_after_hook
+      browser.goto url
+      browser.a(id: 'open').click
 
-        window = browser.window(title: 'closeable window')
-        window.use
-        expect { browser.a(id: 'close').click }.to_not raise_error
-        browser.original_window.use
-      end
+      window = browser.window(title: 'closeable window')
+      window.use
+      expect { browser.a(id: 'close').click }.to_not raise_error
+      browser.original_window.use
     end
   end
 

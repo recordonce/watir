@@ -5,7 +5,7 @@ module Watir
     #
 
     def clear
-      raise Exception::Error, 'you can only clear multi-selects' unless multiple?
+      raise Exception::Error, 'you can only clear multi-selects' unless multiple_select_list?
 
       selected_options.each(&:click)
     end
@@ -18,7 +18,7 @@ module Watir
     #
 
     def include?(str_or_rx)
-      option(text: str_or_rx).exist? || option(label: str_or_rx).exist?
+      option(text: str_or_rx).exist? || option(label: str_or_rx).exist? || option(value: str_or_rx).exist?
     end
 
     #
@@ -29,23 +29,16 @@ module Watir
     # @return [String] The text of the option selected. If multiple options match, returns the first match.
     #
 
-    def select(*str_or_rx)
-      results = str_or_rx.flatten.map { |v| select_by v }
-      results.first
-    end
+    def select(*str_or_rx, text: nil, value: nil, label: nil)
+      key, value = parse_select_args(str_or_rx, text, value, label)
 
-    #
-    # Select all options whose text or label matches the given string.
-    #
-    # @param [String, Regexp] str_or_rx
-    # @raise [Watir::Exception::NoValueFoundException] if the value does not exist.
-    # @return [String] The text of the first option selected.
-    #
-
-    def select_all(*str_or_rx)
-      results = str_or_rx.flatten.map { |v| select_all_by v }
-      results.first
+      if value.size > 1 || value.first.is_a?(Array)
+        value.flatten.map { |v| select_all_by key, v }.first
+      else
+        select_matching([find_option(key, value.flatten.first)])
+      end
     end
+    alias set select
 
     #
     # Uses JavaScript to select the option whose text matches the given string.
@@ -54,36 +47,14 @@ module Watir
     # @raise [Watir::Exception::NoValueFoundException] if the value does not exist.
     #
 
-    def select!(*str_or_rx)
-      results = str_or_rx.flatten.map { |v| select_by!(v, :single) }
-      results.first
-    end
+    def select!(*str_or_rx, text: nil, value: nil, label: nil)
+      key, value = parse_select_args(str_or_rx, text, value, label)
 
-    #
-    # Uses JavaScript to select all options whose text matches the given string.
-    #
-    # @param [String, Regexp] str_or_rx
-    # @raise [Watir::Exception::NoValueFoundException] if the value does not exist.
-    #
-
-    def select_all!(*str_or_rx)
-      results = str_or_rx.flatten.map { |v| select_by!(v, :multiple) }
-      results.first
-    end
-
-    #
-    # Selects the option(s) whose value attribute matches the given string.
-    #
-    # @see +select+
-    #
-    # @param [String, Regexp] str_or_rx
-    # @raise [Watir::Exception::NoValueFoundException] if the value does not exist.
-    # @return [String] The option selected. If multiple options match, returns the first match
-    #
-
-    def select_value(str_or_rx)
-      Watir.logger.deprecate '#select_value', '#select', ids: [:select_value]
-      select_by str_or_rx
+      if value.size > 1 || value.first.is_a?(Array)
+        value.flatten.map { |v| select_by! key, v, :multiple }.first
+      else
+        value.flatten.map { |v| select_by! key, v, :single }.first
+      end
     end
 
     #
@@ -94,16 +65,10 @@ module Watir
     # @return [Boolean]
     #
 
-    def selected?(str_or_rx)
-      by_text = options(text: str_or_rx)
-      return true if by_text.find(&:selected?)
+    def selected?(*str_or_rx, text: nil, value: nil, label: nil)
+      key, value = parse_select_args(str_or_rx, text, value, label)
 
-      by_label = options(label: str_or_rx)
-      return true if by_label.find(&:selected?)
-
-      return false unless (by_text.size + by_label.size).zero?
-
-      raise(UnknownObjectException, "Unable to locate option matching #{str_or_rx.inspect}")
+      find_option(key, value.first).selected?
     end
 
     #
@@ -114,8 +79,7 @@ module Watir
     #
 
     def value
-      option = selected_options.first
-      option&.value
+      selected_options.first&.value
     end
 
     #
@@ -125,9 +89,9 @@ module Watir
     # @return [String, nil]
     #
 
+    # TODO: What is default behavior without #first ?
     def text
-      option = selected_options.first
-      option&.text
+      selected_options.first&.text
     end
 
     # Returns an array of currently selected options.
@@ -141,20 +105,29 @@ module Watir
 
     private
 
-    def select_by(str_or_rx)
-      found = find_options(:value, str_or_rx)
-
-      if found.size > 1
-        Watir.logger.deprecate 'Selecting Multiple Options with #select', '#select_all',
-                               ids: [:select_by]
-      end
-      select_matching(found)
+    def multiple_select_list?
+      @multiple_select = @multiple_select.nil? ? multiple? : @multiple_select
     end
 
-    def select_by!(str_or_rx, number)
-      js_rx = process_str_or_rx(str_or_rx)
+    def parse_select_args(str_or_rx, text, value, label)
+      selectors = {}
+      selectors[:any] = str_or_rx unless str_or_rx.empty?
+      selectors[:text] = Array[text] if text
+      selectors[:value] = Array[value] if value
+      selectors[:label] = Array[label] if label
 
-      %w[Text Label Value].each do |approach|
+      raise ArgumentError, "too many arguments used for Select#select: #{selectors}" if selectors.size > 1
+
+      selectors.first
+    end
+
+    def select_by!(key, str_or_rx, number)
+      str_or_rx = type_check(str_or_rx)
+
+      js_rx = process_str_or_rx(str_or_rx)
+      approaches = key == :any ? %w[Text Label Value] : [key.to_s.capitalize]
+
+      approaches.each do |approach|
         element_call { execute_js("selectOptions#{approach}", self, js_rx, number.to_s) }
         return selected_options.first.text if matching_option?(approach.downcase, str_or_rx)
       end
@@ -170,8 +143,8 @@ module Watir
         str_or_rx.inspect.sub('\\A', '^')
                  .sub('\\Z', '$')
                  .sub('\\z', '$')
-                 .sub(%r{^\/}, '')
-                 .sub(%r{\/[a-z]*$}, '')
+                 .sub(%r{^/}, '')
+                 .sub(%r{/[a-z]*$}, '')
                  .gsub(/\(\?#.+\)/, '')
                  .gsub(/\(\?-\w+:/, '(')
       else
@@ -190,32 +163,33 @@ module Watir
       false
     end
 
-    def select_all_by(str_or_rx)
-      raise Error, 'you can only use #select_all on multi-selects' unless multiple?
+    def select_all_by(key, str_or_rx)
+      raise Error, 'you can only use #select_all on multi-selects' unless multiple_select_list?
 
-      found = find_options :text, str_or_rx
-
-      select_matching(found)
+      select_matching(find_options(key, str_or_rx))
     end
 
-    def find_options(how, str_or_rx)
-      wait_while do
-        case str_or_rx
-        when String, Numeric, Regexp
-          @found = how == :value ? options(value: str_or_rx) : []
-          @found = options(text: str_or_rx) if @found.empty?
-          @found = options(label: str_or_rx) if @found.empty?
-          @found.empty? && Watir.relaxed_locate?
-        else
-          raise TypeError, "expected String or Regexp, got #{str_or_rx.inspect}:#{str_or_rx.class}"
-        end
-      end
-      # TODO: Remove conditional when remove relaxed_locate toggle
-      return @found unless @found.empty?
+    def find_option(key, str_or_rx)
+      val = type_check(str_or_rx)
 
-      raise_no_value_found(str_or_rx)
+      option(key => val).wait_until(&:exists?)
     rescue Wait::TimeoutError
       raise_no_value_found(str_or_rx)
+    end
+
+    def find_options(key, str_or_rx)
+      val = type_check(str_or_rx)
+
+      options(key => val).wait_until(&:exists?)
+    rescue Wait::TimeoutError
+      raise_no_value_found(str_or_rx)
+    end
+
+    def type_check(str_or_rx)
+      str_or_rx = str_or_rx.to_s if str_or_rx.is_a?(Numeric)
+      return str_or_rx if [String, Regexp].any? { |k| str_or_rx.is_a?(k) }
+
+      raise TypeError, "expected String, Numeric or Regexp, got #{str_or_rx.inspect}:#{str_or_rx.class}"
     end
 
     # TODO: Consider locating the Select List before throwing the exception
@@ -224,10 +198,8 @@ module Watir
     end
 
     def select_matching(elements)
-      elements = [elements.first] unless multiple?
       elements.each { |e| e.click unless e.selected? }
-      # TODO: this can go back to #exist? after `:stale_exists` deprecation removed
-      elements.first.stale? ? '' : elements.first.text
+      elements.first.exists? ? elements.first.text : ''
     end
   end # Select
 

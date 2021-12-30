@@ -15,8 +15,19 @@ module Watir
     alias value= set
 
     #
+    # Returns true if element is user_editable because it has a content_editable attribute set
+    #
+    # @return [Boolean]
+    #
+
+    def content_editable
+      defined?(@content_editable) && content_editable?
+    end
+
+    #
     # Uses JavaScript to enter most of the given value.
     # Selenium is used to enter the first and last characters
+    # This might provide a performance improvement when entering a lot of text on a local machine
     #
     # @param [String, Symbol] args
     #
@@ -27,7 +38,7 @@ module Watir
 
       input_value = args.join
       set input_value[0]
-      return content_editable_set!(*args) if @content_editable
+      return content_editable_set!(*args) if content_editable
 
       element_call { execute_js(:setValue, @element, input_value[0..-2]) }
       append(input_value[-1])
@@ -43,7 +54,7 @@ module Watir
     #
 
     def append(*args)
-      raise NotImplementedError, '#append method is not supported with contenteditable element' if @content_editable
+      raise NotImplementedError, '#append method is not supported with contenteditable element' if content_editable
 
       send_keys(*args)
     end
